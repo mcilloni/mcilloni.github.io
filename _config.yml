@@ -10,7 +10,7 @@ gem: [jekyll-paginate, jekyll-gists]
 title:            mcilloni's blog
 tagline:          'A simple blog for rather complicated topics'
 description:      'A collection of rants, experiments and experiences collected during my decade-long delve into the magical world of computers.'
-url:              https://www.mcilloni.ovh
+url:              https://mcilloni.ovh
 baseurl:          /
 
 author:

@@ -26,7 +26,13 @@
         {% endif %}
       {% endfor %}
 
-      <a class="sidebar-nav-item" href="https://www.github.com/{{ site.github.user }}">GitHub</a>
+      <div class="social-icons-right">
+	<a class="fa fa-github" href="https://github.com/{{ site.author.github }}"></a>
+	<a class="fa fa-rss" href="/atom.xml"></a>
+	<a class="fa fa-twitter" href="https://twitter.com/{{ site.author.twitter }}"></a>
+	<a class="fa fa-envelope" href="mailto:{{ site.author.email }}"></a>
+	<a class="fa fa-linkedin" href="https://www.linkedin.com/in/{{ site.author.linkedin }}"></a>
+      </div>
     </nav>
 
     <p>&copy; {{ site.time | date: '%Y' }}. All rights reserved.</p>

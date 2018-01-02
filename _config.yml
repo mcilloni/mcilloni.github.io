@@ -15,7 +15,10 @@ baseurl:          /
 
 author:
   name:           'Marco Cilloni'
-  url:            https://twitter.com/mcilloni
+  email:          'cillonimarco@gmail.com'
+  twitter:        'mcilloni'
+  github:         'mcilloni'
+  linkedin:       'mcilloni'
 
 paginate:         5
 

@@ -112,7 +112,7 @@ table ip nat {
   }
   chain postrouting {
     type nat hook postrouting priority 100; policy accept;
-    ip saddr 10.0.0.0/8 oif "eth0" snat to 51.254.131.73
+    ip saddr 10.0.0.0/8 oif "eth0" snat to MY_EXTERNAL_IPV4
   }
 } 
 
@@ -126,7 +126,7 @@ table ip6 nat {
 
     # Creates a SNAT (source NAT) rule that changes the source 
     # address of the outbound IPs with the external IP of eth0
-    ip6 saddr fd00::1:0:0/96 oif "eth0" snat to <external IPv6>
+    ip6 saddr fd00::1:0:0/96 oif "eth0" snat to MY_EXTERNAL_IPV6
   }
 }
 ```

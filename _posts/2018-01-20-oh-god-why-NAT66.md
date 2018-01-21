@@ -98,8 +98,9 @@ table inet filter {
 
     # Allow packets to be forwarded from the VPNs to the outer world
     ip saddr 10.0.0.0/8 iifname "tun*" oifname eth0 accept
-    # Using fd00::1:0:0/96 allows to match for every fd00::1:xxxx:0/112 
-    # I set up
+    
+    # Using fd00::1:0:0/96 allows to match for
+    # every fd00::1:xxxx:0/112 I set up
     ip6 saddr fd00::1:0:0/96 iifname "tun*" oifname eth0 accept
   }
   [...]
@@ -185,7 +186,7 @@ To make this mess finally functional, I had to make yet another ugly hack (as if
 label ::1/128       0  # Local IPv6 address
 label ::/0          1  # Every IPv6
 label 2002::/16     2 # 6to4 IPv6
-label ::/96         3 # Deprecated IPv4-compatible IPv6 address prefix
+label ::/96         3 # Deprecated IPv4-compatible IPv6 address
 label ::ffff:0:0/96 4  # Every IPv4 address
 label fec0::/10     5 # Deprecated 
 label 2001:0::/32   7 # Teredo addresses

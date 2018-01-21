@@ -158,10 +158,10 @@ PING facebook.com(edge-star-mini6-shv-01-lht6.facebook.com (2a03:2880:f129:83:fa
 
 What? Why is ping trying to reach Facebook on its IPv4 address by default instead of trying IPv6 first?
 
-### Changing gai.conf
+### One workaround always leads to another
 
 Well, it turned out that Glibc's getaddrinfo() function, which is generally used to perform DNS resolution, uses a precedence system to correctly prioritise source-destination address pairs.   
-I started to suspect that the default behaviour of getaddrinfo() could be to consider local addresses (including ULA) as a separate case than global IPv6 ones; so, I checked the `gai.conf` file.
+I started to suspect that the default behaviour of getaddrinfo() could be to consider local addresses (including ULA) as a separate case than global IPv6 ones; so, I tried to check `gai.conf`, the configuration file for the IPv6 DNS resolver.
 
 ```
 label ::1/128       0  # Local IPv6 address
@@ -177,7 +177,7 @@ label 2001:0::/32   7 # Teredo addresses
 As I suspected, a ULA address is labelled differently (6) than a global Unicast one (1), and, because the default behaviour specified by RFC 3484 is to prefer pairs of source-destination addresses with the same label, the IPv4 is picked over the IPv6 ULA every time.  
 Damn, I was so close to commiting the perfect crime.
 
-To make this mess finally functional, I had to make yet another ugly hack (as if NAT66 using ULAs wasn't enough), by setting a new label table in gai.conf that didn't make distinctions between addresses.
+To make this mess finally functional, I had to make yet another ugly hack (as if NAT66 using ULAs wasn't enough), by setting a new label table in `gai.conf` that didn't make distinctions between addresses.
 
 ```
 label ::1/128       0  # Local IPv6 address

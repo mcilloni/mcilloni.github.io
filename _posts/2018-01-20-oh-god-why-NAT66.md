@@ -4,9 +4,11 @@ title: "NAT66: The good, the bad, the ugly"
 ---
 
 NAT (and NAPT) is one of those technologies anyone has a strong opinion about. It has been for years the necessary evil and invaluable (yet massive) hack that kept IPv4 from falling apart in the face of its abysmally small 32-bit address space - which was, to be honest, an absolute OK choice for the time the protocol was designed, when computers cost a small fortune, and were as big as lorries.
+
 The Internet Protocol, version 4, has been abused for quite too long now.  We made it into the fundamental building block of the modern Internet, a network of a scale it was never designed for. We are well in due time to put it at rest and replace it with its controversial, yet problem-solving 128-bit grandchild, IPv6.
 
-So, what should be the place for NAT in the new Internet, which makes the return to the end-to-end principle one of its main tenets?   
+So, what should be the place for NAT in the new Internet, which makes the return to the end-to-end principle one of its main tenets?
+
 Well, none, according to the IETF, which has for years tried to dissuade everyone with dabbing with NAT66 (the name NAT is known on IPv6); this is not without good reasons, though. For too long, the supposedly stateless, connectionless level 3 IP protocol has been made into an impromptu "stateful", connection-oriented protocol by NAT gateways, just for the sake to meet the demands of an infinite number of devices trying to connect to the Internet. 
 
 This is without considering the false sense of security that address masquerading provides; I cannot recall how many times I've heard people say that *(gasp!)* NAT was fundamental piece in the security of their internal networks (it's not). 

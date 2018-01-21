@@ -133,7 +133,7 @@ table ip6 nat {
 }
 ```
 
-The ip6 nat table and the forwarding inet chain are the most important stuff to notice here, given that they respectively configure the packet filter to perform NAT66 and to forward packets from the `tun*` interfaces to the outer world.
+`table ip6 nat` table and `chain forward` in `table inet filter` are the most important things to notice here, given that they respectively configure the packet filter to perform NAT66 and to forward packets from the `tun*` interfaces to the outer world.
 
 After applying the new ruleset with `nft -f <path/to/ruleset>` command, I was ready to witness the birth of our my little sinful setup. 
 The only thing left was to ping a known IPv6 from one of the clients, to ensure that forwarding and NAT are working fine. One of the Google DNS servers would suffice:

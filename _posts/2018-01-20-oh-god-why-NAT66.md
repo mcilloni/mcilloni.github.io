@@ -160,7 +160,8 @@ What? Why is ping trying to reach Facebook on its IPv4 address by default instea
 
 ### One workaround always leads to another
 
-Well, it turned out that Glibc's getaddrinfo() function, which is generally used to perform DNS resolution, uses a precedence system to correctly prioritise source-destination address pairs.   
+Well, it turned out that Glibc's getaddrinfo() function, which is generally used to perform DNS resolution, uses a precedence system to correctly prioritise source-destination address pairs.
+
 I started to suspect that the default behaviour of getaddrinfo() could be to consider local addresses (including ULA) as a separate case than global IPv6 ones; so, I tried to check `gai.conf`, the configuration file for the IPv6 DNS resolver.
 
 ```

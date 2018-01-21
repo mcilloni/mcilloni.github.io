@@ -84,7 +84,7 @@ Feel free to use `ip6tables`, if that's what you are already using, and you don'
 
 This is a shortened, summarised snippet of the rules that I've had to put into my nftables.conf to make NAT66 work; I've also left the IPv4 rules in for the sake of completeness.
 
-(Remember to change MY_EXTERNAL_IPVx with your IPv4/6)
+<sub><sup>*PS: Remember to change MY_EXTERNAL_IPVx with your IPv4/6!*</sup></sub>
 
 ```
 table inet filter {

@@ -17,7 +17,7 @@ This is without considering the false sense of security that address masqueradin
 
 Given that the immensity of the IPv6 address space allows providers to give out full `/64`s to customers, I'd always failed to see the point in NAT66: it always felt to me as a feature fundamentally dead in the water, a solution seeking a problem, ready to be misused.
 
-Well, this was before taking into account how cheap some hosting services could be.
+Well, this was before discovering how cheap some hosting services could be.
 
 ### Being cheap: the root of all evils
 

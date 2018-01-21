@@ -174,7 +174,7 @@ label fc00::/7      6 # ULA
 label 2001:0::/32   7 # Teredo addresses
 ```
 
-What is show in the snippet above is the default label table used by `getaddrinfo()`.   
+What is shown in the snippet above is the default label table used by `getaddrinfo()`.   
 As I suspected, a ULA address is labelled differently (6) than a global Unicast one (1), and, because the default behaviour specified by RFC 3484 is to prefer pairs of source-destination addresses with the same label, the IPv4 is picked over the IPv6 ULA every time.  
 Damn, I was so close to commiting the perfect crime.
 

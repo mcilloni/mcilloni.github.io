@@ -1,6 +1,13 @@
-.center-image
-{
+.center-image {
     margin: 0 auto;
     display: block;
 }
  
+.footnotes {
+    font-size: 12px;
+    font-style: italic;
+}
+
+.footnotes > ol { 
+    padding-left: 12px; 
+}

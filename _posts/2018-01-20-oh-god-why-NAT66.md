@@ -9,6 +9,8 @@ The Internet Protocol, version 4, has been abused for quite too long now.  We ma
 
 So, what should be the place for NAT in the new Internet, which makes the return to the end-to-end principle one of its main tenets?
 
+### NAT66 misses the point
+
 Well, none, according to the IETF, which has for years tried to dissuade everyone with dabbing with NAT66 (the name NAT is known on IPv6); this is not without good reasons, though. For too long, the supposedly stateless, connectionless level 3 IP protocol has been made into an impromptu "stateful", connection-oriented protocol by NAT gateways, just for the sake to meet the demands of an infinite number of devices trying to connect to the Internet. 
 
 This is without considering the false sense of security that address masquerading provides; I cannot recall how many times I've heard people say that *(gasp!)* NAT was fundamental piece in the security of their internal networks (it's not). 

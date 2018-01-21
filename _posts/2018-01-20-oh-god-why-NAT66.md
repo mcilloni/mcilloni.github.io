@@ -158,7 +158,7 @@ PING facebook.com(edge-star-mini6-shv-01-lht6.facebook.com (2a03:2880:f129:83:fa
 
 What? Why is ping trying to reach Facebook on its IPv4 address by default instead of trying IPv6 first?
 
-### Changing gai.conf
+### One workaround always leads to another
 
 Well, it turned out that Glibc's getaddrinfo() function, which is generally used to perform DNS resolution, uses a precedence system to correctly prioritise source-destination address pairs.   
 I started to suspect that the default behaviour of getaddrinfo() could be to consider local addresses (including ULA) as a separate case than global IPv6 ones; so, I checked the `gai.conf` file.

@@ -15,7 +15,8 @@ Well, none, according to the IETF, which has for years tried to dissuade everyon
 
 This is without considering the false sense of security that address masquerading provides; I cannot recall how many times I've heard people say that *(gasp!)* NAT was fundamental piece in the security of their internal networks (it's not). 
 
-Given that the immensity of the IPv6 address space allows providers to give out full `/64`s to customers, I'd always failed to see the point in NAT66: it always felt to me as a feature fundamentally dead in the water, a solution seeking a problem, ready to be misused. 
+Given that the immensity of the IPv6 address space allows providers to give out full `/64`s to customers, I'd always failed to see the point in NAT66: it always felt to me as a feature fundamentally dead in the water, a solution seeking a problem, ready to be misused.
+
 Well, this was before taking into account how cheap some hosting services could be.
 
 ### Being cheap: the root of all evils

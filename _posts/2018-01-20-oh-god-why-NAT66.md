@@ -37,7 +37,7 @@ I was left with fundamentally only two reasonable choices:
 1. Get a free /64 from a Hurricane Electric tunnel, and allocate IPv6s for VPN guests from there;
 2. Be a very bad person, set up NAT66, and feel ashamed.
 
-Hurrican Electric is, without doubt, the most orthodox option between the two; it's free of charge, it gives out `/64`s, and it's quite easy to set up.  
+Hurricane Electric is, without doubt, the most orthodox option between the two; it's free of charge, it gives out `/64`s, and it's quite easy to set up.  
 
 The main showstopper here is definitely the increased network latency added by two layers of tunnelling (VPN -> 6to4 -> IPv6 internet), and, given that by default native IPv6 source IPs are preferred to IPv4, it would have been bad if having a v6 public address incurred in a slow down of connections with usually tolerable latencies. Especially if there was a way to get decent RTTs for both IPv6 and IPv4...
  

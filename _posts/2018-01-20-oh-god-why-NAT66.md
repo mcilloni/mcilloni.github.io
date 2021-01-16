@@ -13,7 +13,7 @@ So, what should be the place for NAT in the new Internet, which makes the return
 
 Well, none, according to the IETF, which has for years tried to dissuade everyone with dabbing with NAT66 (the name NAT is known on IPv6); this is not without good reasons, though. For too long, the supposedly stateless, connectionless level 3 IP protocol has been made into an impromptu "stateful", connection-oriented protocol by NAT gateways, just for the sake to meet the demands of an infinite number of devices trying to connect to the Internet. 
 
-This is without considering the false sense of security that address masquerading provides; I cannot recall how many times I've heard people say that *(gasp!)* NAT was fundamental piece in the security of their internal networks (it's not). 
+This is without considering the false sense of security that address masquerading provides; I cannot recall how many times I've heard people say that *(gasp!)* NAT is a fundamental piece in the security of their internal networks (it's not). 
 
 Given that the immensity of the IPv6 address space allows providers to give out full `/64`s to customers, I'd always failed to see the point in NAT66: it always felt to me as a feature fundamentally dead in the water, a solution seeking a problem, ready to be misused.
 
@@ -37,9 +37,9 @@ I was left with fundamentally only two reasonable choices:
 1. Get a free /64 from a Hurricane Electric tunnel, and allocate IPv6s for VPN guests from there;
 2. Be a very bad person, set up NAT66, and feel ashamed.
 
-Hurrican Electric is, without doubt, the most orthodox option between the two; it's free of charge, it gives out `/64`s, and it's quite easy to set up.  
+Hurricane Electric is, without doubt, the most orthodox option between the two; it's free of charge, it gives out `/64`s, and it's quite easy to set up.  
 
-The main showstopper here is definitely the increased network latency added by two layers of tunnelling (VPN -> 6to4 -> IPv6 internet), and, given that by default native IPv6 source IPs are preferred to IPv4, it would have been bad if having a v6 public address incurred in a slow down of connections with usually tolerable latencies. Especially if there was a way to get decent RTTs for both IPv6 and IPv4...
+The main showstopper here is definitely the increased network latency added by two layers of tunneling (VPN -> 6to4 -> IPv6 internet), and, given that by default native IPv6 source IPs are preferred to IPv4, it would have been bad if having a v6 public address incurred in a slow down of connections with usually tolerable latencies. Especially if there was a way to get decent RTTs for both IPv6 and IPv4...
  
 And so, with a pang of guilt, I shamefully committed the worst crime.
 
@@ -179,8 +179,8 @@ label 2001:0::/32   7 # Teredo addresses
 ```
 
 What is shown in the snippet above is the default label table used by `getaddrinfo()`.   
-As I suspected, a ULA address is labelled differently (6) than a global Unicast one (1), and, because the default behaviour specified by RFC 3484 is to prefer pairs of source-destination addresses with the same label, the IPv4 is picked over the IPv6 ULA every time.  
-Damn, I was so close to commiting the perfect crime.
+As I suspected, a ULA address is labeled differently (6) than a global Unicast one (1), and, because the default behaviour specified by RFC 3484 is to prefer pairs of source-destination addresses with the same label, the IPv4 is picked over the IPv6 ULA every time.  
+Damn, I was so close to committing the perfect crime.
 
 To make this mess finally functional, I had to make yet another ugly hack (as if NAT66 using ULAs wasn't enough), by setting a new label table in `gai.conf` that didn't make distinctions between addresses.
 

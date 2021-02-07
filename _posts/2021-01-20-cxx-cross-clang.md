@@ -331,7 +331,7 @@ endian = 'little'
 
 ```
 
-This cross-file can then be specified to `meson setup` using the `--cross-file` option [^8], while everything else remains the same as with every other Meson build.
+This cross-file can then be specified to `meson setup` using the `--cross-file` option [^5], while everything else remains the same as with every other Meson build.
 
 And, well, this is basically it: like with CMake, the whole process is relatively painless and foolproof. 
 For the sake of completeness, this is how to build `dav1d`, VideoLAN's AV1 decoder, for `aarch64-pc-freebsd`:
@@ -379,10 +379,10 @@ dest/usr/local/bin/dav1d: ELF 64-bit LSB executable, ARM aarch64, version 1 (Fre
 
 ```
 
-## Appendix: static linking with musl and Alpine Linux
+## Bonus: static linking with musl and Alpine Linux
 
 Statically linking a C or C++ program can sometimes save you a lot of library compatibility headaches, especially when you can't control what's going to be installed on whatever you plan to target.
-Building static binaries is however quite annoying on GNU/Linux, due to Glibc actively refraining people from linking it statically. [^5]
+Building static binaries is however quite annoying on GNU/Linux, due to Glibc actively refraining people from linking it statically. [^6]
 
 Musl is a very compatible standard library implementation for Linux that plays much nicer with static linking, and it is now shipped by most major distributions. These packages often suffice in building your code statically, at least as long as you plan to stick with plain C. 
 
@@ -399,7 +399,7 @@ $ wget -qO - https://dl-cdn.alpinelinux.org/alpine/v3.13/releases/x86_64/alpine-
 ```
 
 It is now possible to chroot inside the image in `~/alpine_tree` to set it up with all the packages you may need. 
-I prefer in general to use `systemd-nspawn` instead then `chroot` because it is vastly better and less error prone. [^6]
+I prefer in general to use `systemd-nspawn` instead then `chroot` because it is vastly better and less error prone. [^7]
 
 ```shell
 $ $  sudo systemd-nspawn -D alpine_tree
@@ -448,7 +448,7 @@ OK: 189 MiB in 31 packages
 ```
 
 In this case I only installed `g++` and `libc-dev` in order to get a static `libstdc++` and the STL headers. I also installed `zlib-dev` to install zlib's headers and `zlib-static` to get `libz.a`. 
-Many other libraries have also static versions available, along with their headers, inside `-dev` or `-static` packages. [^7]
+Many other libraries have also static versions available, along with their headers, inside `-dev` or `-static` packages. [^8]
 
 ### Compiling static C++ programs
 
@@ -519,8 +519,28 @@ $ file zpipe
 zpipe: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, with debug_info, not stripped
 ```
 
-This can be useful with build systems that don't play nicely with statically linking, like Autotools (sometimes) or raw Makefiles.
+Changing CC is then possible to force Clang to only ever link `-static`, which can be useful with build systems that don't play nicely with statically linking. From my experience, the worst offenders in this regard are Autotools (sometimes) and poorly written Makefiles.
 
+### Conclusions
+
+Cross-compiling C and C++ is and will always (probably) be an annoying task, but it has sucked immensely less since LLVM became production-ready. Clang's `-target` option has saved me countless man-hours that I would have instead wasted building and re-building GCC and Binutils over and over again. 
+
+Alas, all that glitters is not gold, as is often the case. There is still code around that only builds with GCC due to nasty GNUisms (I'm looking at you, Glibc). Cross compiling for Windows/MSVC is still bordeline unfeasible due to how messy the whole Visual Studio toolchain is. 
+
+Furthermore, while targeting arbitrary triples with Clang is now definitely simpler that it was, it still pales in comparison to how trivial cross compiling with Rust or Go is. 
+
+One special mention among these new languages should go to Zig, and its goal to also make C and C++ easy to build for other platforms.
+
+The `zig cc` and `zig c++` commands have the potential to become an amazing swiss-army knife tool for cross compiling. Thanks to Zig shipping a copy of `clang` and large chunks of projects such as Glibc, Musl, libc++ and MinGW, the `zig` tool is capable to build on demand the required libraries for a few supported triples:
+
+```shell
+$ zig c++ --target=x86_64-windows-gnu -o str.exe str.cc
+$ file str.exe
+str.exe: PE32+ executable (console) x86-64, for MS Windows
+```
+
+While I think it might sometimes still be a bit clunkier than I'd like, it feels almost like magic. 
+I dare to say that this could really become a killer selling point for Zig, even for those who are not really into the language. 
 
 [^1]: If the transfer is happening across a network and not locally, it's a good idea to compress the output tarball.
 
@@ -530,8 +550,12 @@ This can be useful with build systems that don't play nicely with statically lin
 
 [^4]: This is without talking about those criminals who hardcode `gcc` in their build scripts, but this is a rant better left for another day.
 
-[^5]: Glibc's builtin name resolution system (NSS) is one of the main culprits, which heavily uses dlopen()/dlsym(). This is due to its heavy usage of plugins, which is meant to provide support for extra third-party resolvers such as mDNS.
+[^5]: In the same fashion, it is also possible to tune the native toolchain for the current machine using a _native file_ and the `--native-file` toggle.
 
-[^6]: `systemd-nspawn` can also double as a lighter alternative to VMs, using the `--boot` option to spawn an init process inside the container. See [this very helpful gist](https://gist.github.com/sfan5/52aa53f5dca06ac3af30455b203d3404) to learn how to make bootable containers for distributions based on OpenRC, like Alpine.
+[^6]: Glibc's builtin name resolution system (NSS) is one of the main culprits, which heavily uses dlopen()/dlsym(). This is due to its heavy usage of plugins, which is meant to provide support for extra third-party resolvers such as mDNS.
 
-[^7]: Sadly, Alpine for reasons unknown to me, does not ship the static version of certain libraries (like `libfmt`). Given that embedding a local copy of third party dependencies is common practice nowadays for C++, this is not too problematic. 
+[^7]: `systemd-nspawn` can also double as a lighter alternative to VMs, using the `--boot` option to spawn an init process inside the container. See [this very helpful gist](https://gist.github.com/sfan5/52aa53f5dca06ac3af30455b203d3404) to learn how to make bootable containers for distributions based on OpenRC, like Alpine.
+
+[^8]: Sadly, Alpine for reasons unknown to me, does not ship the static version of certain libraries (like `libfmt`). Given that embedding a local copy of third party dependencies is common practice nowadays for C++, this is not too problematic. 
+
+[^9]: The `zig cc` and `zig c++` commands are also good options for cross compiling, thanks to Zig bundling a whole copy of `clang` and parts of Glibc, Musl, libc++, MinGW, ... I find it still slightly clunkier than I'd like, but it feels very promising.

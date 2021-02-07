@@ -9,7 +9,7 @@ gem: [jekyll-paginate, jekyll-gists]
 # Setup
 title:            mcilloni's blog
 tagline:          'A simple blog for rather complicated topics'
-description:      'Rants, experiments and experiences collected during my decade-long delving into the magical world of computers.'
+description:      'Rants, experiments and experiences collected while delving into the magical world of computers.'
 url:              https://mcilloni.ovh
 baseurl:          /
 
@@ -25,4 +25,3 @@ paginate:         5
 # Custom vars
 version:          2.1.0
 disqus:		  true
-

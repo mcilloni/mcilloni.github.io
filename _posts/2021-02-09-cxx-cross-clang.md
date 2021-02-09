@@ -10,8 +10,8 @@ Like many compilers of yore, GCC and its `binutils` brethren were never designed
 
 For instance, assuming you wish to build something for FreeBSD on your Linux machine using GCC, you need:
 
-- A GCC + binutils install for your host triplet (i.e., x86_64-pc-linux-gnu or similar);
-- A GCC + binutils complete install for your target triplet (i.e. x86_64-unknown-freebsd12.2-gcc, as, nm, etc)
+- A GCC + binutils install for your host triplet (i.e., `x86_64-pc-linux-gnu` or similar);
+- A GCC + binutils complete install for your target triplet (i.e. `x86_64-unknown-freebsd12.2-gcc`, `as`, `nm`, etc)
 - A sysroot containing the necessary libraries and headers, which you can either build yourself or promptly steal from a running installation of FreeBSD.
 
 This process is sometimes made simpler by Linux distributions or hardware vendors offering a selection of prepackaged compilers, but this will never suffice due to the sheer amount of possible host-target combinations. This sometimes means you have to build the whole toolchain yourself, something that, unless you rock a quite beefy CPU, tends to be a massive waste of time and power.
@@ -22,7 +22,7 @@ This annoying limitation is one of the reasons why I got interested in LLVM (and
 
 I found this to be a game-changer, and, while it can't still compete in convenience with modern language toolchains (such as Go's gc and `GOARCH`/`GOOS`), it's night and day better than the rigmarole of setting up GNU toolchains. You can now just fetch whatever your favorite package management system has available in its repositories (as long as it's not extremely old), and avoid messing around with multiple installs of GCC.
 
-Until a few years ago, the whole process wasn't as smooth as it could be. Due to LLVM not having a full toolchain yet available, you were still supposed to provide a `binutils` build specific for your target. While this is generally much more tolerable than building the whole compiler (`binutils` is relatively fast to build), it was still somewhat of a nuisance, and I'm glad that `llvm-mc` (LLVM's integrated assembler) and `lld` (universal linker) are finally stable as flexible as the rest of LLVM.
+Until a few years ago, the whole process wasn't as smooth as it could be. Due to LLVM not having a full toolchain yet available, you were still supposed to provide a `binutils` build specific for your target. While this is generally much more tolerable than building the whole compiler (`binutils` is relatively fast to build), it was still somewhat of a nuisance, and I'm glad that `llvm-mc` (LLVM's integrated assembler) and `lld` (universal linker) are finally stable and as flexible as the rest of LLVM.
 
 With the toolchain now set, the next step becomes to obtain a sysroot in order to provide the needed headers and libraries to compile and link for your target.
 

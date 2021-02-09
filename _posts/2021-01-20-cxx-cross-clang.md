@@ -3,33 +3,31 @@ layout: post
 title: Cross compiling made easy, using Clang and LLVM
 ---
 
-Anyone who ever tried to cross-compile a C/C++ program knows how big a PITA the whole process could be. 
-I have been building software for other platforms on my main GNU/Linux system for years, and I must say it has never been a very pleasant experience.
-The main culprits are how byzantine build systems tend to be when configuring for cross-compilation, and how messy it is to set-up your cross toolchain in the first place.   
+Anyone who ever tried to cross-compile a C/C++ program knows how big a PITA the whole process could be. The main reasons for this sorry state of things are generally how byzantine build systems tend to be when configuring for cross-compilation, and how messy it is to set-up your cross toolchain in the first place.   
 
-One of the main culprits in my experience has been the GNU toolchain, the decades-old behemoth upon which the Unix-like world has been building for years.
-Like many compilers of yore, GCC and its `binutils` brethren were never designed with the intent to support multiple targets within a single setup. The only supported approach is to install a full cross build for each triple you wish to target on any given host. 
+One of the main culprits in my experience has been the GNU toolchain, the decades-old behemoth upon which the POSIXish world has been built for years.
+Like many compilers of yore, GCC and its `binutils` brethren were never designed with the intent to support multiple targets within a single setup, with he only supported approach being installing a full cross build for each triple you wish to target on any given host. 
 
 For instance, assuming you wish to build something for FreeBSD on your Linux machine using GCC, you need:
 
 - A GCC + binutils install for your host triplet (i.e., x86_64-pc-linux-gnu or similar);
 - A GCC + binutils complete install for your target triplet (i.e. x86_64-unknown-freebsd12.2-gcc, as, nm, etc)
-- A sysroot containing the necessary libraries and headers, which you can promptly steal from a running installation of FreeBSD.
+- A sysroot containing the necessary libraries and headers, which you can either build yourself or promptly steal from a running installation of FreeBSD.
 
-This process is sometimes made simpler by Linux distributions or hardware vendors offering a selection of prepackaged compilers, but this is often not enough due to the sheer amount of possible host-target combinations. This sometimes means build the whole toolchain yourself, something that, unless you rock a quite beefy CPU, tends to be a massive waste of time and power.
+This process is sometimes made simpler by Linux distributions or hardware vendors offering a selection of prepackaged compilers, but this will never suffice due to the sheer amount of possible host-target combinations. This sometimes means you have to build the whole toolchain yourself, something that, unless you rock a quite beefy CPU, tends to be a massive waste of time and power.
 
 ## Clang as a cross compiler
 
-This annoying limitation is one of the reasons why I got interested in LLVM (and thus Clang), which is by-design a full-fledged cross compiler toolchain widely compatible with GNU. A single install can output and compile code _for every supported target_, as long as a complete sysroot is available at build time.
+This annoying limitation is one of the reasons why I got interested in LLVM (and thus Clang), which is by-design a full-fledged cross compiler toolchain and is mostly compatible with GNU. A single install can output and compile code _for every supported target_, as long as a complete sysroot is available at build time.
 
-I found this to be a game-changer, and, while it can't still compete with modern language toolchains such as Go, it's night and day better than what we had before. You can now just fetch whatever your favorite package management system has available (as long as it's not extremely old), avoiding messing around with multiple installs of GCC.
+I found this to be a game-changer, and, while it can't still compete in convenience with modern language toolchains (such as Go's gc and `GOARCH`/`GOOS`), it's night and day better than the rigmarole of setting up GNU toolchains. You can now just fetch whatever your favorite package management system has available in its repositories (as long as it's not extremely old), and avoid messing around with multiple installs of GCC.
 
-Until a few years ago, the whole process wasn't as smooth as it could be. Due to LLVM not having a full toolchain yet available, you were still supposed to provide a `binutils` build specific for your target. While this was much more tolerable (`binutils` is relatively fast to build), it was still somewhat of a nuisance, and I'm glad that `llvm-mc` and `lld` are finally stable as flexible as the rest of LLVM.
+Until a few years ago, the whole process wasn't as smooth as it could be. Due to LLVM not having a full toolchain yet available, you were still supposed to provide a `binutils` build specific for your target. While this is generally much more tolerable than building the whole compiler (`binutils` is relatively fast to build), it was still somewhat of a nuisance, and I'm glad that `llvm-mc` (LLVM's integrated assembler) and `lld` (universal linker) are finally stable as flexible as the rest of LLVM.
 
 With the toolchain now set, the next step becomes to obtain a sysroot in order to provide the needed headers and libraries to compile and link for your target.
 
 ## Obtaining a sysroot 
-A super fast way to find a working system directory for a given OS is to rip it straight from an existing system. It could be from a Docker container image, or straight from a running machine.
+A super fast way to find a working system directory for a given OS is to rip it straight out of an existing system (a Docker container image will often also do).
 For instance, this is how I used `tar` through `ssh` as a quick way to extract a working sysroot from a FreeBSD 13-CURRENT AArch64 VM [^1]:
 
 ```
@@ -60,16 +58,16 @@ $ file zpipe
 zpipe: ELF 64-bit LSB executable, ARM aarch64, version 1 (FreeBSD), dynamically linked, interpreter /libexec/ld-elf.so.1, for FreeBSD 13.0 (1300136), FreeBSD-style, with debug_info, not stripped
 ```
 
-In the snipped above, I have managed to compile and link a C++ file into an executable for AArch64 FreeBSD, all while using just the `clang` and `lld` I had already installed on the system.
+In the snipped above, I have managed to compile and link a C++ file into an executable for AArch64 FreeBSD, all while using just the `clang` and `lld` I had already installed on my GNU/Linux system.
 
 More in detail:
-1. `--target` swaps the LLVM default target (`x86_64-pc-linux-gnu`) to `aarch64-pc-freebsd`, thus enabling cross-compilation.
-2. `--sysroot` forces Clang to assume the specified path as the root to search for headers and libraries, instead of the standard paths. Note that sometimes this setting might not be enough, especially if the target uses GCC and Clang somehow fails to detect its install path. This can be easily fixed by specifying `--gcc-toolchain`, which clarifies where to search for GCC installations.
-3. `-fuse-ld=lld` tells Clang to use `lld` instead of the default. As I will explain in a short while, it's highly unlikely that the system linker understands foreign targets, while LLD can natively support almost every binary format and OS [^2].
+1. `--target` switches the LLVM default target (`x86_64-pc-linux-gnu`) to `aarch64-pc-freebsd`, thus enabling cross-compilation.
+2. `--sysroot` forces Clang to assume the specified path as root when searching headers and libraries, instead of the usual paths. Note that sometimes this setting might not be enough, especially if the target uses GCC and Clang somehow fails to detect its install path. This can be easily fixed by specifying `--gcc-toolchain`, which clarifies where to search for GCC installations.
+3. `-fuse-ld=lld` tells Clang to use `lld` instead whatever default the platform uses. As I will explain below, it's highly unlikely that the system linker understands foreign targets, while LLD can natively support _almost_ every binary format and OS [^2].
 4. `-stdlib=libc++` is needed here due to Clang failing to detect that FreeBSD on AArch64 uses LLVM's `libc++` instead of GCC's `libstdc++`.
 5. `-lz` is also specified to show how Clang can also resolve other libraries inside the sysroot without issues, in this case, `zlib`.
 
-The last test is now to copy the binary to our target system and check if it works correctly:
+The final test is now to copy the binary to our target system (i.e. the VM we ripped the sysroot from before) and check if it works as expected:
 
 ```shell
 $ rsync zpipe FARM64:"~"
@@ -93,7 +91,7 @@ Success! It's now possible to use this cross toolchain to build larger programs,
 
 LLVM provides a mostly compatible counterpart for almost every tool shipped by `binutils` (with the notable exception of `as` [^3]), prefixed with `llvm-`. 
 
-The most critical of these is LLD, which is a drop in replacement for a plaform's system linker, capable to replace both GNU `ld.bfd` and `gold` on GNU/Linux or BSD, and Microsoft's LINK.EXE when targeting MSVC. It supports linking on (almost) every platform supported by LLVM, thus removing the nuisance to have multiple specific linkers installed.
+The most critical of these is LLD, which is a drop in replacement for a plaform's system linker, capable to replace both GNU `ld.bfd` and `gold` on GNU/Linux or BSD, and Microsoft's `LINK.EXE` when targeting MSVC. It supports linking on (almost) every platform supported by LLVM, thus removing the nuisance to have multiple specific linkers installed.
 
 Both GCC and Clang support using `ld.lld` instead of the system linker (which may well be `lld`, like on FreeBSD) via the command line switch `-fuse-ld=lld`. 
 
@@ -123,9 +121,9 @@ mvd-farm64: ELF 64-bit LSB executable, ARM aarch64, version 1 (FreeBSD), dynamic
 
 ### Optional: creating Clang wrappers to simplify cross-compilation
 
-I happened to notice that certain build systems (and with _"certain"_ I mean some poorly written `Makefile`s and sometimes Autotools) have a tendency to misbehave when the specified CC, CXX or LD commands containing spaces or multiple parameters, like the one we devised above. [^4] 
+I happened to notice that certain build systems (and with _"certain"_ I mean some poorly written `Makefile`s and sometimes Autotools) have a tendency to misbehave when `$CC`, `$CXX` or `$LD` contain spaces or multiple parameters. This might become a recurrent issue if we need to invoke `clang` with several arguments. [^4] 
 
-Given how unwieldy it is to remember to write all of the correct parameters everywhere, I like to write quick wrappers for `clang` and `clang++` in order to simplify building for a certain target:
+Given also how unwieldy it is to remember to write all of the parameters correctly everywhere, I usually write quick wrappers for `clang` and `clang++` in order to simplify building for a certain target:
 
 ```shell
 $ cat ~/.local/bin/aarch64-pc-freebsd-clang
@@ -135,7 +133,12 @@ exec /usr/bin/clang -B$HOME/.llvm/bin --target=aarch64-pc-freebsd --sysroot=$HOM
 $ cat ~/.local/bin/aarch64-pc-freebsd-clang++
 #!/usr/bin/env sh
 
-exec /usr/bin/clang++ -B$HOME/.llvm/bin -stdlib=libc++ --target=aarch64-pc-freebsd --sysroot=$HOME/farm_tree "$@"
+exec /usr/bin/clang++ -B$HOME/.llvm/bin -stdlib=libc++ --target=aarch64-pc-freebsd --sysroot=$HOME/farm_tree "$@"	
+```
+
+If created in a directory inside $PATH, these script can used everywhere as standalone commands:
+
+```shell
 $ aarch64-pc-freebsd-clang++ -o tst tst.cc -static
 $ file tst
 tst: ELF 64-bit LSB executable, ARM aarch64, version 1 (FreeBSD), statically linked, for FreeBSD 13.0 (1300136), FreeBSD-style, with debug_info, not stripped
@@ -144,16 +147,16 @@ tst: ELF 64-bit LSB executable, ARM aarch64, version 1 (FreeBSD), statically lin
 
 ## Cross-building with Autotools, CMake and Meson
 
-Autotools, CMake, and Meson are arguably the most popular building systems for C and C++ open source projects (sorry SCons).
+Autotools, CMake, and Meson are arguably the most popular building systems for C and C++ open source projects (sorry, SCons).
 All of three support cross-compiling out of the box, albeit with some caveats.
 
 ### Autotools
 
-Autotools has a reputation for being horrendously clunky and breaking easily. While this is definitely well earned, it's been around for decades, and it's easy to find support online when something goes awry (sadly, this is not true when writing `.ac` files). Compared to its more modern breathren, it doesn't require any toolchain file or extra configuration when cross compiling, and it's only driven by command line options.
+Over the years, Autotools has been famous for being horrendously clunky and breaking easily. While this reputation is definitely well earned, it's still widely used by most large GNU projects. Given it's been around for decades, it's quite easy to find support online when something goes awry (sadly, this is not also true when writing `.ac` files). When compared to its more modern breathren, it doesn't require any toolchain file or extra configuration when cross compiling, being only driven by command line options.
 
-A `./configure` script (either generated by autoconf or shipped in tarballs) _usually_ supports the `--host` flag, allowing the user to specify the triple of the _host_ the final artifacts will run on. This flags activates cross compilation, indicating the _"auto-something"_ array of tools to detect the correct compiler for the target, which generally assumed to be `some-triple-gcc`.
+A `./configure` script (either generated by autoconf or shipped by a tarball alongside source code) _usually_ supports the `--host` flag, allowing the user to specify the triple of the _host_ on which the final artifacts are meant to be run. This flags activates cross compilation, and causes the _"auto-something"_ array of tools to try to detect the correct compiler for the target, which generally assumed to be `some-triple-gcc`.
 
-For instance, let's try to configure `binutils` 2.35.1 for `aarch64-pc-freebsd`, using what introduced before:
+For instance, let's try to configure `binutils` version 2.35.1 for `aarch64-pc-freebsd`, using the Clang wrapper introduced above:
 
 ```shell
 $ tar xvf binutils-2.35.1.tar.xz
@@ -186,11 +189,11 @@ checking whether aarch64-pc-freebsd-clang++ accepts -g... yes
 The invocation of `./configure` above specifies that I want autotools to:
 
 1. Configure for building on an `x86_64-pc-linux-gnu` host (which I specified using `--build`);
-2. Build binaries that will run on `aarch64-pc-freebsd`, using the `--host` switch, and
-3. Use the Clang wrappers made above as C and C++ compilers, and
+2. Build binaries that will run on `aarch64-pc-freebsd`, using the `--host` switch;
+3. Use the Clang wrappers made above as C and C++ compilers;
 4. Use `llvm-ar` as the target `ar`.
 
-I also specified to build the Gold linker, which is written in C++ and it's a good test for our cross C++ compiler. 
+I also specified to build the Gold linker, which is written in C++ and it's a good test for well our improvised toolchain handles compiling C++. 
 
 If the configuration step doesn't fail for some reason (it shouldn't), it's now time to run GNU Make to build `binutils`:
 
@@ -199,6 +202,11 @@ $ make -j16 # because I have 16 theads on my system
 [ lots of output]
 $ mkdir dest
 $ make DESTDIR=$PWD/dest install # install into a fake tree
+```
+
+There should now be executable files and libraries inside of the fake tree generated by `make install`. A quick test using `file` confirms they have been correctly built for `aarch64-pc-freebsd`:
+
+```shell
 $ file dest/usr/local/bin/ld.gold
 dest/usr/local/bin/ld.gold: ELF 64-bit LSB executable, ARM aarch64, version 1 (FreeBSD), dynamically linked, interpreter /libexec/ld-elf.so.1, for FreeBSD 13.0 (1300136), FreeBSD-style, with debug_info, not stripped
 ```
@@ -207,7 +215,7 @@ dest/usr/local/bin/ld.gold: ELF 64-bit LSB executable, ARM aarch64, version 1 (F
 
 The simplest way to set CMake to configure for an arbitrary target is to write a _toolchain file_. These usually consist of a list of declarations that instructs CMake on how it is supposed to use a given toolchain, specifying parameters like the target operating system, the CPU architecture, the name of the C++ compiler, and such.
 
-One feasible toolchain file for `aarch64-pc-freebsd` triple could be the following:
+One reasonable toolchain file for the `aarch64-pc-freebsd` triple written as follows:
 
 ```CMake
 set(CMAKE_SYSTEM_NAME FreeBSD)
@@ -227,11 +235,11 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 ```
 
-In this file, I specified the wrapper created above as the cross compiler for C and C++ for the target. It should be possible to also use plain Clang with the right parameters, but it's much less straightforward and potentially more error-prone. 
+In this file, I specified the wrapper created above as the cross compiler for C and C++ for the target. It should be possible to also use plain Clang with the right arguments, but it's much less straightforward and potentially more error-prone. 
 
-In any case, it is important to indicate `CMAKE_SYSROOT` and `CMAKE_FIND_ROOT_PATH_MODE_*` variables, or otherwise CMake could wrongly pick the packages from the host with disastrous results.
+In any case, it is _very_ important to indicate the `CMAKE_SYSROOT` and `CMAKE_FIND_ROOT_PATH_MODE_*` variables, or otherwise CMake could wrongly pick packages from the host with disastrous results.
 
-It is now only a matter of setting `CMAKE_TOOLCHAIN_FILE` with the path to the toolchain file when configuring a project. To better illustrate this, I will now try to cross build `{fmt}` (which is an amazing C++ library you should definitely use):
+It is now only a matter of setting `CMAKE_TOOLCHAIN_FILE` with the path to the toolchain file when configuring a project. To better illustrate this, I will now also build `{fmt}` (which is an amazing C++ library you should definitely use) for `aarch64-pc-freebsd`:
 
 ```shell
 $  git clone https://github.com/fmtlib/fmt
@@ -272,7 +280,7 @@ $ cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=$HOME/toolchain-aarch64-freebsd
 -- Build files have been written to: /home/marco/fmt/build
 ```
 
-Compared with Autotools, the command line to `cmake` is very simple and doesn't need too much explanation. After the configuration step is finished, it's only a matter to compile the project and install the resulting artifacts somewhere:
+Compared with Autotools, the command line passed to `cmake` is very simple and doesn't need too much explanation. After the configuration step is finished, it's only a matter to compile the project and get `ninja` or `make` to install the resulting artifacts somewhere.
 
 ```shell
 $ cmake --build build
@@ -331,7 +339,7 @@ endian = 'little'
 
 ```
 
-This cross-file can then be specified to `meson setup` using the `--cross-file` option [^5], while everything else remains the same as with every other Meson build.
+This cross-file can then be specified to `meson setup` using the `--cross-file` option [^5], with everything else remaining the same as with every other Meson build.
 
 And, well, this is basically it: like with CMake, the whole process is relatively painless and foolproof. 
 For the sake of completeness, this is how to build `dav1d`, VideoLAN's AV1 decoder, for `aarch64-pc-freebsd`:
@@ -382,24 +390,24 @@ dest/usr/local/bin/dav1d: ELF 64-bit LSB executable, ARM aarch64, version 1 (Fre
 ## Bonus: static linking with musl and Alpine Linux
 
 Statically linking a C or C++ program can sometimes save you a lot of library compatibility headaches, especially when you can't control what's going to be installed on whatever you plan to target.
-Building static binaries is however quite annoying on GNU/Linux, due to Glibc actively refraining people from linking it statically. [^6]
+Building static binaries is however quite complex on GNU/Linux, due to Glibc actively discouraging people from linking it statically. [^6]
 
 Musl is a very compatible standard library implementation for Linux that plays much nicer with static linking, and it is now shipped by most major distributions. These packages often suffice in building your code statically, at least as long as you plan to stick with plain C. 
 
-The situation gets much more complicated if you plan to use C++, or if you need additional components. System libraries (like `libstdc++`, `libz`, `libffi` and so on) are usually only built for Glibc, so you must compile everything else yourself, including `libstdc++`, which means recompiling GCC or LLVM's `libc++`.
+The situation gets much more complicated if you plan to use C++, or if you need additional components. Any library shipped by a GNU/Linux system (like `libstdc++`, `libz`, `libffi` and so on) is usually only built for Glibc, meaning that any library you wish to use must be rebuilt to target Musl. This also applies to `libstdc++`, which inevitably means either recompiling GCC or building a copy of LLVM's `libc++`.
 
-Thankfully, there are several distributions out there that target _"Musl-plus-Linux"_, everyone's favorite being Alpine Linux. It is thus possible to apply the same approach used with FreeBSD on AArch before to obtain a `x86_64-pc-linux-musl` sysroot, complete of libraries and packages built for Musl. 
+Thankfully, there are several distributions out there that target _"Musl-plus-Linux"_, everyone's favorite being Alpine Linux. It is thus possible to apply the same strategy we used above to obtain a `x86_64-pc-linux-musl` sysroot complete of libraries and packages built for Musl, which can then be used by Clang to generate 100% static executables. 
 
 ### Setting up an Alpine container
 
-A good starting point are the minirootfs tarballs provided by Alpine, which are meant for containers and tend to be very small:
+A good starting point is the minirootfs tarball provided by Alpine, which is meant for containers and tends to be very small:
 
 ```shell
 $ wget -qO - https://dl-cdn.alpinelinux.org/alpine/v3.13/releases/x86_64/alpine-minirootfs-3.13.1-x86_64.tar.gz | gunzip | sudo tar xfp - -C ~/alpine_tree
 ```
 
-It is now possible to chroot inside the image in `~/alpine_tree` to set it up with all the packages you may need. 
-I prefer in general to use `systemd-nspawn` instead then `chroot` because it is vastly better and less error prone. [^7]
+It is now possible to chroot inside the image in `~/alpine_tree` and set it up, installing all the packages you may need. 
+I prefer in general to use `systemd-nspawn` in lieu of `chroot` due to it being vastly better and less error prone. [^7]
 
 ```shell
 $ $  sudo systemd-nspawn -D alpine_tree
@@ -408,7 +416,7 @@ Press ^] three times within 1s to kill container.
 alpinetree:~# 
 ```
 
-We can now (optionally) switch to the `edge` branch of Alpine for newer packages by editing `/etc/apk/repositories`, and then install the required packages containing the static libraries we need:
+We can now (optionally) switch to the `edge` branch of Alpine for newer packages by editing `/etc/apk/repositories`, and then install the required packages containing any static libraries required by the code we want to build:
 
 ```shell
 alpinetree:~# cat /etc/apk/repositories
@@ -447,8 +455,10 @@ Executing busybox-1.33.0-r1.trigger
 OK: 189 MiB in 31 packages
 ```
 
-In this case I only installed `g++` and `libc-dev` in order to get a static `libstdc++` and the STL headers. I also installed `zlib-dev` to install zlib's headers and `zlib-static` to get `libz.a`. 
-Many other libraries have also static versions available, along with their headers, inside `-dev` or `-static` packages. [^8]
+In this case I installed `g++` and `libc-dev` in order to get a static copy of `libstdc++`, a static `libc.a` (Musl) and their respective headers. I also installed `zlib-dev` and `zlib-static` to install zlib's headers and `libz.a`, respectively. 
+As a general rule, Alpine usually ships static versions available inside `-static` packages, and headers as `somepackage-dev`. [^8]
+
+Also, remember every once in a while to run `apk upgrade` inside the _sysroot_ in order to keep the local Alpine install up to date. 
 
 ### Compiling static C++ programs
 
@@ -460,11 +470,13 @@ $ file zpipe
 zpipe: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, with debug_info, not stripped
 ```
 
-The extra `--gcc-toolchain` is optional, but may help solving issues where clang the sysroot's GCC, which is needed for the C runtime startup files.
-The extra `-L` for `/lib` is required because Alpine splits its libraries between `/usr/lib` and `/lib`; the latter is not automatically picked up by `clang` and `gcc`, which both usually expect libraries to be located in `$SYSROOT/usr/bin`.
+The extra `--gcc-toolchain` is optional, but may help solving issues where compilation fails due to Clang not detecting where GCC and the various crt*.o files reside in the sysroot.
+The extra `-L` for `/lib` is required because Alpine splits its libraries between `/usr/lib` and `/lib`, and the latter is not automatically picked up by `clang`, which both usually expect libraries to be located in `$SYSROOT/usr/bin`.
+
+### Writing a wrapper for static linking with Musl and Clang
 
 Musl packages usually come with the upstream-provided shims `musl-gcc` and `musl-clang`, which wrap the system compilers in order to build and link with the alternative libc. 
-In order to provide a similar level of convenience, I whipped the following short Perl script:
+In order to provide a similar level of convenience, I quickly whipped up the following Perl script:
 
 ```perl
 #!/usr/bin/env perl
@@ -519,19 +531,19 @@ $ file zpipe
 zpipe: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, with debug_info, not stripped
 ```
 
-Changing CC is then possible to force Clang to only ever link `-static`, which can be useful with build systems that don't play nicely with statically linking. From my experience, the worst offenders in this regard are Autotools (sometimes) and poorly written Makefiles.
+It is thus possible to force Clang to only ever link `-static` by setting $CC to `musl-clang-static`, which can be useful with build systems that don't play nicely with statically linking. From my experience, the worst offenders in this regard are Autotools (sometimes) and poorly written Makefiles.
 
 ### Conclusions
 
-Cross-compiling C and C++ is and will always (probably) be an annoying task, but it has sucked immensely less since LLVM became production-ready. Clang's `-target` option has saved me countless man-hours that I would have instead wasted building and re-building GCC and Binutils over and over again. 
+Cross-compiling C and C++ is and will probably always be an annoying task, but it has got much better since LLVM became production-ready and widely available. Clang's `-target` option has saved me countless man-hours that I would have instead wasted building and re-building GCC and Binutils over and over again. 
 
-Alas, all that glitters is not gold, as is often the case. There is still code around that only builds with GCC due to nasty GNUisms (I'm looking at you, Glibc). Cross compiling for Windows/MSVC is still bordeline unfeasible due to how messy the whole Visual Studio toolchain is. 
+Alas, all that glitters is not gold, as is often the case. There is still code around that only builds with GCC due to nasty GNUisms (I'm looking at you, Glibc). Cross compiling for Windows/MSVC is also bordeline unfeasible due to how messy the whole Visual Studio toolchain is. 
 
 Furthermore, while targeting arbitrary triples with Clang is now definitely simpler that it was, it still pales in comparison to how trivial cross compiling with Rust or Go is. 
 
 One special mention among these new languages should go to Zig, and its goal to also make C and C++ easy to build for other platforms.
 
-The `zig cc` and `zig c++` commands have the potential to become an amazing swiss-army knife tool for cross compiling. Thanks to Zig shipping a copy of `clang` and large chunks of projects such as Glibc, Musl, libc++ and MinGW, the `zig` tool is capable to build on demand the required libraries for a few supported triples:
+The `zig cc` and `zig c++` commands have the potential to become an amazing swiss-army knife tool for cross compiling, thanks to Zig shipping a copy of `clang` and large chunks of projects such as Glibc, Musl, libc++ and MinGW. Any required library is then built _on-the-fly_ when required:
 
 ```shell
 $ zig c++ --target=x86_64-windows-gnu -o str.exe str.cc
@@ -539,8 +551,7 @@ $ file str.exe
 str.exe: PE32+ executable (console) x86-64, for MS Windows
 ```
 
-While I think it might sometimes still be a bit clunkier than I'd like, it feels almost like magic. 
-I dare to say that this could really become a killer selling point for Zig, even for those who are not really into the language. 
+While I think this is not yet perfect, it already feels almost like magic. I dare to say, this might really become a killer selling point for Zig, making it attractive even for those who are not interested in using the language itself. 
 
 [^1]: If the transfer is happening across a network and not locally, it's a good idea to compress the output tarball.
 

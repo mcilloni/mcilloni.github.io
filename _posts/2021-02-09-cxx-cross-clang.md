@@ -162,8 +162,7 @@ For instance, let's try to configure `binutils` version 2.35.1 for `aarch64-pc-f
 $ tar xvf binutils-2.35.1.tar.xz
 $ mkdir binutils-2.35.1/build # always create a build directory to avoid messing up the source tree
 $ cd binutils-2.35.1/build
-$ env CC='aarch64-pc-freebsd-clang' CXX='aarch64-pc-freebsd-clang++' AR=llvm-ar ../configure --build=x86_64-pc-linux-gnu --host=aarch64-pc-freebsd --
-enable-gold=yes
+$ env CC='aarch64-pc-freebsd-clang' CXX='aarch64-pc-freebsd-clang++' AR=llvm-ar ../configure --build=x86_64-pc-linux-gnu --host=aarch64-pc-freebsd --enable-gold=yes
 checking build system type... x86_64-pc-linux-gnu
 checking host system type... aarch64-pc-freebsd
 checking target system type... aarch64-pc-freebsd

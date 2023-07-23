@@ -302,7 +302,7 @@ While UTF-32 seems convenient at first, it is not in practice all that useful, f
 
 On Linux, for instance:
 
-```C
+```c
 #include <locale.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -322,7 +322,7 @@ int main(void) {
 
 3. The fact UTF-32 is a fixed-width encoding is only marginally useful, due to *grapheme clusters still being a thing*. This means that the equivalence between codepoints and rendered glyphs is still not 1:1, just like in UCS-4:
 
-```C
+```c
 // GNU/Linux, x86_64
 
 #include <locale.h>
@@ -384,7 +384,7 @@ key2:value2
 key\:3:value3
 ```
 
-```C
+```c
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -658,7 +658,7 @@ Unfortunately, internationalization support introduces a great deal of complexit
 1. First and foremost, there's still a massive amount of software that doesn't default to (or outright does not support) UTF-8, because it was either designed to work with legacy 8-bit encodings (like ISO-8859-1) or because it was designed in the '90s to use UCS-2 and it's permanently stuck with it or with faux _"UTF-16"_.
 Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API are constantly converting text from UTF-8 (which is nowadays the sole Internet standard) to their internal UTF-16 representation. This is a massive waste of CPU cycles, which while more abundant than in the past, are still a finite resource.
 
-    ```Qt C++
+    ```c++
     // Linux x86_64, Qt 6.5.1. Encoding is `en_US.UTF-8`.
     #include <iostream>
 
@@ -685,7 +685,7 @@ Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API
 
 2. Case insensitivity in Unicode is a massive headache. First and foremost, the concept itself of "ignoring case" is deeply European-centric due to it being chiefly limited to _bicameral scripts_ such as Latin, Cyrillic or Greek. What is considered the opposite case of a letter may vary as well, depending on the system's locale:
 
-    ```Java
+    ```java
     public class Up {
         public static void main(final String[] args) {
             final var uc = "CIAO";
@@ -723,7 +723,7 @@ Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API
 
     While quite tricky to get right at times and at times more UTF-16 centric than I'd like, using ICU is still way saner than any self-written alternative:
 
-    ```C
+    ```c
     #include <stdint.h>
     #include <stdio.h>
     #include <stdlib.h>
@@ -787,7 +787,7 @@ Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API
 
     Unicode defines [a complex set of rules for collation](https://unicode.org/reports/tr10/) and provides a reference implementation in ICU through the `ucol` API (and its relative C++ and Java equivalents).
 
-    ```C
+    ```c
     #define _GNU_SOURCE // for qsort_r
 
     #include <stdint.h>

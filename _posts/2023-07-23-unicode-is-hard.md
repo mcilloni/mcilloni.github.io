@@ -13,7 +13,7 @@ Text is usually represented and stored as a sequence of numerical values in bina
 
 One such example of this is ASCII, the US-centric standard which has been for decades the de-facto way to represent characters and symbols in C and UNIX. ASCII is a 7-bit encoding, which means that it can represent up to 128 different characters. The first 32 characters are control characters, which are not printable, and the remaining 96 are printable characters, which include the 26 letters of the English alphabet, the 10 digits, and a few symbols:
 
-```ASCII table
+```
 Dec Hex    Dec Hex    Dec Hex  Dec Hex  Dec Hex  Dec Hex   Dec Hex   Dec Hex  
   0 00 NUL  16 10 DLE  32 20    48 30 0  64 40 @  80 50 P   96 60 `  112 70 p
   1 01 SOH  17 11 DC1  33 21 !  49 31 1  65 41 A  81 51 Q   97 61 a  113 71 q

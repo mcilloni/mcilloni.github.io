@@ -92,7 +92,7 @@ Most crucially, multibyte encodings (a necessity for Asian characters) meant tha
 
 For a while, the most common solution was to use a single encoding for each language, and then hope for the best. This often led to garbled text (who hasn't seen the infamous `�` character at least once), so much so that a specific term was coined to describe it - _"mojibake"_, from the Japanese _"文字化け" _("character transformation")_.
 
-![KOI8-R text mistakenly written on an envelope as ISO-8859-1 text]({{ "/public/mojibake.png" | absolute_url }} "I guess they thought it was actual Russian text"){: .center-image}
+![KOI8-R text mistakenly written on an envelope as ISO-8859-1 text]({{ "/public/mojibake.jpg" | absolute_url }} "I guess they thought it was actual Russian text"){: .center-image}
 
 In general, for a long time using a non-English locale meant that you had to contend with broken third (often first) party software, patchy support for certain characters, and switching encodings on the fly depending on the context. The inconvenience was such that it was common for non-Latin Internet users to converse in their native languages with the Latin alphabet, using impromptu transliterations if necessary. A prime example of this was the Arabic chat alphabet widespread among Arabic-speaking netizens in the 90's and 00's [^1]. 
 

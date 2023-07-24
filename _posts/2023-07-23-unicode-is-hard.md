@@ -719,7 +719,7 @@ Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API
     
     In Turkish, the uppercase of `i` is `İ`, and the lowercase of `I` is `ı`, which breaks the ASCII-centric assumption the Java[^14] snippet above is built on. There is a multitude of such examples of "naive" implementations of case insensitivity in Unicode that inevitably end up being incorrect under unforeseen circumstances. 
     
-    Taking all edge cases related to Unicode case folding into account is a lot of work, especially since it's very hard to properly test all possible locales. This is the reason why **Unicode handling is always best left to a library**. For C/C++ and Java, the Unicode Consortium itself provides a reference implementation of the Unicode algorithms, called [ICU](https://unicode-org.github.io/icu/), which is used by the vast majority of most major programming languages and frameworks. 
+    Taking all edge cases related to Unicode case folding into account is a lot of work, especially since it's very hard to properly test all possible locales. This is the reason why **Unicode handling is always best left to a library**. For C/C++ and Java, the Unicode Consortium itself provides a reference implementation of the Unicode algorithms, called [ICU](https://unicode-org.github.io/icu/), which is used by a large number of frameworks and shipped by almost every major OS. 
 
     While quite tricky to get right at times and at times more UTF-16 centric than I'd like, using ICU is still way saner than any self-written alternative:
 

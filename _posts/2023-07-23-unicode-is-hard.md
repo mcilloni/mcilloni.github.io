@@ -113,7 +113,7 @@ Unicode 1.0 covered 26 scripts and 7,161 characters, covering most of the world'
 
 Alongside the first Unicode specification, which defined the character set, two[^2] new character encodings, called **UCS-2** and **UCS-4** (which came a bit later), were also introduced. UCS-2 was the original Unicode encoding, and it's an extension of ASCII to 16 bits, representing what Unicode called the **Basic Multilingual Plane** (_"BMP"_); UCS-4 is the same but with 32-bit values. Both were fixed-width encodings, using multiple bytes to represent each single character in a string. 
 
-In particular, UCS-2's maximum range of 65,536 possible values was well good enough to cover the entire Unicode 1.0 set of characters. The storage savings compared with UCS-4 were quite enticing, also - while '90s machines weren't as constrained as the ones that came before, representing basic Latin characters with 4 bytes was still seen as an egregious waste.[^3]
+In particular, UCS-2's maximum range of 65,536 possible values was good enough to cover the entire Unicode 1.0 set of characters. The storage savings compared with UCS-4 were quite enticing, also - while '90s machines weren't as constrained as the ones that came before, representing basic Latin characters with 4 bytes was still seen as an egregious waste.[^3]
 
 Thus, 16 bits quickly became the standard size for the `wchar_t` type recently added by the C89 standard to support wide characters for encodings like Shift-JIS. Sure, switching from `char` to `wchar_t` required developers to rewrite all code to use wide characters and wide functions, but a bit of `sed` was a small price to pay for the ability to resolve internationalization, right?
 

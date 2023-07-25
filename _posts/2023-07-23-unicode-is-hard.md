@@ -147,7 +147,7 @@ int _tmain(const int argc, const TCHAR *argv[const]) {
 }
 ```
 
-Neat, right?[^3] This was indeed considered so neat that developers jumped on the UCS-2 bandwagon in droves, finally glad the encoding mess was over.
+Neat, right? This was indeed considered so convenient that developers jumped on the UCS-2 bandwagon in droves, finally glad the encoding mess was over.
 
 16-bit Unicode was indeed a huge success, as attested by the number of applications and libraries that adopted it during the '90s:
 
@@ -253,7 +253,13 @@ Notice that in the example above I had to specify an endianness for the bytes (l
 
 The standard calls for UTF-16 streams to start with a **Byte Order Mark** (BOM), represented by the special codepoint `U+FEFF`. Reading `0xFEFF` indicates that the endianness of a text block is the same as the endianness of the decoding system; reading those bytes flipped, as `0xFFFE`, indicates opposite endianness instead.
 
-As an example, let's assume a big-endian system has generated the sequence `[0xFE, 0xFF, 0x61, 0x00]`. All systems, LE or BE, will detect that the first two bytes are a surrogate pair, and read them as they are depending on their endianness. \A big-endian system will decode `U+FEFF`, which is the BOM, and thus will assume the text is in UTF-16 in its same byte endianness (BE). A little-endian system will instead read `U+FFEE`, which is still the BOM but flipped, so it will assume the text is in the opposite endianness (BE in the case of an LE system). In both cases, the BOM allows the following character to be correctly parsed as `U+0061` (a.k.a. `a`).
+As an example, let's assume a big-endian system has generated the sequence `[0xFE, 0xFF, 0x61, 0x00]`. \
+All systems, LE or BE, will detect that the first two bytes are a surrogate pair, and read them as they are depending on their endianness. Then:
+
+- A _big-endian_ system will decode `U+FEFF`, which is the BOM, and thus will assume the text is in UTF-16 in its same byte endianness (BE);
+- A _little-endian_ system will instead read `U+FFEE`, which is still the BOM but flipped, so it will assume the text is in the opposite endianness (BE in the case of an LE system).
+
+In both cases, the BOM allows the following character to be correctly parsed as `U+0061` (a.k.a. `a`).
 
 If no BOM is detected, then most decoders will do as they please (despite the standard recommending to assume UTF-16BE), which most of the time means assuming the endianness of the system:
 
@@ -286,81 +292,81 @@ While UTF-32 seems convenient at first, it is not in practice all that useful, f
 
 1. UTF-32 is outrageously wasteful because all characters, including those belonging to the ASCII plane, are represented using 4 bytes. Given that the vast majority of text uses ASCII characters for markup, content or both, UTF-32 encoded text tends to be mostly comprised of just a few significant bytes scattered in between a sea of zeroes:
 
-```python
->>> # UTF-32BE encoded text with BOM
->>> bytes([0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00, 0x62, 0x00, 0x00, 0x00, 0x63]).decode('utf-32')
-'abc'
->>> # The same, but in UTF-16BE
->>> bytes([0xFE, 0xFF, 0x00, 0x61, 0x00, 0x62, 0x00, 0x63]).decode('utf-16')
-'abc'
->>> # The same, but in ASCII
->>> bytes([0x61, 0x62, 0x63]).decode('ascii')
-'abc'
-```
+    ```python
+    >>> # UTF-32BE encoded text with BOM
+    >>> bytes([0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00, 0x62, 0x00, 0x00, 0x00, 0x63]).decode('utf-32')
+    'abc'
+    >>> # The same, but in UTF-16BE
+    >>> bytes([0xFE, 0xFF, 0x00, 0x61, 0x00, 0x62, 0x00, 0x63]).decode('utf-16')
+    'abc'
+    >>> # The same, but in ASCII
+    >>> bytes([0x61, 0x62, 0x63]).decode('ascii')
+    'abc'
+    ```
 
 2. No major OS or software uses UTF-32 as its internal encoding as far as I'm aware of. While locales in modern UNIX systems usually define `wchar_t` as representing UTF-32 codepoints, they are seldom used due to most software in existence assuming that `wchar_t` is 16-bit wide. 
 
-On Linux, for instance:
+    On Linux, for instance:
 
-```c
-#include <locale.h>
-#include <stdio.h>
-#include <wchar.h>
+    ```c
+    #include <locale.h>
+    #include <stdio.h>
+    #include <wchar.h>
 
-int main(void) {
-    // one of the bajilion ways to set a Unicode locale - we'll talk UTF-8 later
-    setlocale(LC_ALL, "en_US.UTF-8"); 
-    const wchar_t s[] = L"abc";
+    int main(void) {
+        // one of the bajilion ways to set a Unicode locale - we'll talk UTF-8 later
+        setlocale(LC_ALL, "en_US.UTF-8"); 
+        const wchar_t s[] = L"abc";
 
-    printf("sizeof(wchar_t) == %zu\n", sizeof *s); // 4
-    printf("wcslen(s) == %zu\n", wcslen(s)); // 3
-    printf("bytes in s == %zu\n", sizeof s); // 16 (12 + 4, due to the null terminator)
+        printf("sizeof(wchar_t) == %zu\n", sizeof *s); // 4
+        printf("wcslen(s) == %zu\n", wcslen(s)); // 3
+        printf("bytes in s == %zu\n", sizeof s); // 16 (12 + 4, due to the null terminator)
 
-    return 0;    
-}
-```
+        return 0;    
+    }
+    ```
 
 3. The fact UTF-32 is a fixed-width encoding is only marginally useful, due to *grapheme clusters still being a thing*. This means that the equivalence between codepoints and rendered glyphs is still not 1:1, just like in UCS-4:
 
-```c
-// GNU/Linux, x86_64
+    ```c
+    // GNU/Linux, x86_64
 
-#include <locale.h>
-#include <stdio.h>
-#include <wchar.h>
+    #include <locale.h>
+    #include <stdio.h>
+    #include <wchar.h>
 
-int main(void) {
-    setlocale(LC_ALL, "en_US.UTF-8");
+    int main(void) {
+        setlocale(LC_ALL, "en_US.UTF-8");
 
-    // "caña", with 'ñ' written as the grapheme cluster "n" + "combining tilde"
-    const wchar_t string[] = L"can\u0303a";
+        // "caña", with 'ñ' written as the grapheme cluster "n" + "combining tilde"
+        const wchar_t string[] = L"can\u0303a";
 
-    wprintf(L"`%ls`\n", string); // prints "caña" as 4 glyphs
-    wprintf(L"`%ls` is %zu codepoints long\n", string, wcslen(string)); // 5 codepoints
-    wprintf(L"`%ls` is %zu bytes long\n", string, sizeof string); // 24 bytes (5 UCS-4 codepoints + null)
+        wprintf(L"`%ls`\n", string); // prints "caña" as 4 glyphs
+        wprintf(L"`%ls` is %zu codepoints long\n", string, wcslen(string)); // 5 codepoints
+        wprintf(L"`%ls` is %zu bytes long\n", string, sizeof string); // 24 bytes (5 UCS-4 codepoints + null)
 
-    // this other string is the same as the previous one, but with the precomposed "ñ" character
-    const wchar_t probe[] = L"ca\u00F1a";
+        // this other string is the same as the previous one, but with the precomposed "ñ" character
+        const wchar_t probe[] = L"ca\u00F1a";
 
-    const _Bool different = wcscmp(string, probe);
+        const _Bool different = wcscmp(string, probe);
 
-    // this will always print "different", because the two strings are not the same despite being identical
-    wprintf(L"`%ls` and `%ls` are %s\n", string, probe, different ? "different" : "equal");
+        // this will always print "different", because the two strings are not the same despite being identical
+        wprintf(L"`%ls` and `%ls` are %s\n", string, probe, different ? "different" : "equal");
 
-    return 0;
-}
-```
+        return 0;
+    }
+    ```
 
-```shell
-$ cc -o widestr_test widestr_test.c -std=c11
-$ ./widestr_test
-`caña`
-`caña` is 5 codepoints long
-`caña` is 24 bytes long
-`caña` and `caña` are different
-```
+    ```shell
+    $ cc -o widestr_test widestr_test.c -std=c11
+    $ ./widestr_test
+    `caña`
+    `caña` is 5 codepoints long
+    `caña` is 24 bytes long
+    `caña` and `caña` are different
+    ```
 
-This is by far the biggest letdown about UTF-32: it is not the ultimate "extended ASCII" encoding most people wished for, because it is still incorrect so iterate over characters, and it still requires normalization _(see below)_ in order to be safely operated on character by character.
+    This is by far the biggest letdown about UTF-32: it is not the ultimate "extended ASCII" encoding most people wished for, because it is still incorrect so iterate over characters, and it still requires normalization _(see below)_ in order to be safely operated on character by character.
 
 ### UTF-8
 

@@ -208,7 +208,7 @@ This is obviously a big departure from the "strings are just arrays of character
 
 Anyone with any degree of familiarity with Asian languages will have noticed that 7,161 characters are way too small a number to include the tens of thousands of Chinese characters in existence. This is without counting minor and historical scripts, and the thousands of symbols and glyphs used in mathematics, music, and other fields.
 
-In the years following 1991, the Unicode character set was thus expanded with tens of thousands of new characters, and it become quickly apparent that UCS-2 was soon going to run out of 16-bit code points.^6]
+In the years following 1991, the Unicode character set was thus expanded with tens of thousands of new characters, and it become quickly apparent that UCS-2 was soon going to run out of 16-bit code points.[^6]
 
 To circumvent this issue, the Unicode Consortium decided to expand the character set from 16 to 21 bits. This was a huge breaking change that basically meant __obsoleting UCS-2__ (and thus breaking most software designed in the '90s), just a few years after its introduction and widespread adoption.
 
@@ -216,9 +216,9 @@ While UCS-2 was still capable of representing anything inside the BMP, it became
 
 ## UTF
 
-The acronym _"UTF"_ stands for _"Unicode Transformation Format"_, and represents a family of **variable-width encodings** capable to represent the whole Unicode character set, up to its hypothetical supported potential 2²¹ characters. Compared to UCS, UTF encodings specify how a given stream of bytes can be converted into a sequence of Unicode code points, and vice versa (i.e., _"transformed"_).
+The acronym _"UTF"_ stands for _"Unicode Transformation Format"_, and represents a family of **variable-width encodings** capable of representing the whole Unicode character set, up to its hypothetical supported potential 2²¹ characters. Compared to UCS, UTF encodings specify how a given stream of bytes can be converted into a sequence of Unicode code points, and vice versa (i.e., _"transformed"_).
 
-Compared to a fixed-width encoding like UCS-2, a variable-width character encoding can employ a variable number of code units to encode each character. This bypasses the "one code unit per character" limitation of fixed-width encodings, and allows representing a much larger number of characters - potentially, infinite, depending on how many _"lead units"_ are reserved as markers for multiunit sequences.
+Compared to a fixed-width encoding like UCS-2, a variable-width character encoding can employ a variable number of code units to encode each character. This bypasses the "one code unit per character" limitation of fixed-width encodings, and allows the representation of a much larger number of characters---potentially, an infinite number, depending on how many _"lead units"_ are reserved as markers for multi-unit sequences.
 
 Excluding the dead-on-arrival UTF-1, there are 4 UTF encodings in use today:
 
@@ -233,7 +233,7 @@ To salvage the consistent investments made to support UCS-2, the Unicode Consort
 
 Like UCS-2, UTF-16 can represent the entirety of the BMP using a single 16-bit value. Every codepoint above `U+FFFF` is represented using a pair of 16-bit values, called **surrogate pairs**. The first value (the _"high surrogate"_) is always a value in the range `U+D800` to `U+DBFF`, while the second value (the _"low surrogate"_) is always a value in the range `U+DC00` to `U+DFFF`. 
 
-This, in practice, means that the range reserved for BMP characters never overlaps with surrogates, making it trivial to distinguish between a single 16-bit codepoint and a surrogate pair, which makes UTF-16 [*self-synchronizing*](https://en.wikipedia.org/wiki/Self-synchronizing_code) on 16-bit values.
+This, in practice, means that the range reserved for BMP characters never overlaps with surrogates, making it trivial to distinguish between a single 16-bit codepoint and a surrogate pair, which makes UTF-16 [*self-synchronizing*](https://en.wikipedia.org/wiki/Self-synchronizing_code) over 16-bit values.
 
 Emojis are an example of characters that lie outside of the BMP; as such, they are always represented using surrogate pairs.
 For instance, the character `U+1F600` (😀) is represented in UTF-16 by the surrogate pair `[0xD83D, 0xDE00]`:
@@ -284,7 +284,7 @@ If no BOM is detected, then most decoders will do as they please (despite the st
 Some decoders may probe the first few codepoints for zeroes to detect the endianness of the stream, which is in general not an amazing idea. As a rule of thumb, UTF-16 text should **never rely on automated endianness detection**, and thus either always start with a BOM or assume a fixed endianness value (which in the vast majority of cases is UTF-16LE, which is what Windows does).
 
 ### UTF-32
-Just as UTF-16 is an extension of UCS-2, **UTF-32** is an evolution of UCS-4. Compared to all other UTF encodings, UTF-32 is by far the simplest, because like its predecessor it is a **fixed-width encoding**.
+Just as UTF-16 is an extension of UCS-2, **UTF-32** is an evolution of UCS-4. Compared to all other UTF encodings, UTF-32 is by far the simplest, because like its predecessor, it is a **fixed-width encoding**.
 
 The major difference between UCS-4 and UTF-32 is that the latter has been limited down 21 bits, from its maximum of 31 bits (UCS-4 was signed). This has been done to maintain compatibility with UTF-16, which is constrained by its design to only represent codepoints up to `U+10FFFF`.
 
@@ -508,9 +508,9 @@ key: `key2`, value: `value2`
 key: `key:3`, value: `value3`
 ```
 
-This program operates on files `char` by `char` (or rather, `int` by `int` - that's a long story), using whatever the "native" 8-bit ("narrow") execution character set is to match for basic ASCII characters such as `:`, `\` and `\n`.
+This program operates on files `char` by `char` (or rather, `int` by `int`---that's a long story), using whatever the "native" 8-bit ("narrow") execution character set is to match for basic ASCII characters such as `:`, `\` and `\n`.
 
-The beauty of UTF-8 is that code that splits, searches or synchronises using ASCII _symbols_[^10] will work fine as-is, with little to no modification, even with Unicode text.
+The beauty of UTF-8 is that code that splits, searches, or synchronises using ASCII _symbols_[^10] will work fine as-is, with little to no modification, even with Unicode text.
 
 Standard C character literals will still be valid Unicode codepoints, as long as the encoding of the source file is UTF-8. In the file above, `':'` and other ASCII literals will fit in a char (int, really) as long as they are encoded as ASCII (`:` is `U+003A`). 
 
@@ -563,7 +563,7 @@ To solve this issue, Unicode defines two different types of equivalence between 
 
 - **Compatibility equivalence**, when two combinations of one or more codepoints more or less represent the same "abstract" character, while being rendered differently or having different semantics, like in the case of _"ﬁ"_, or mathematical signs such as "Mathematical Bold Capital A" (`𝐀`).
 
-Canonical equivalence is generally considered a stronger form of equivalence than compatibility equivalence: it is critical for text processing tools to be able to treat canonically equivalent characters as the same, otherwise, users may be unable to search, edit or operate on text properly.[^12] On the other end, users are aware of compatibility equivalent characters due to their different semantic and visual features, so their equivalence becomes relevant only in specific circumstances (like textual search, for instance, or when the user tries to copy "fancy" characters from Word to a text box that only accepts plain text). 
+Canonical equivalence is generally considered a stronger form of equivalence than compatibility equivalence: it is critical for text processing tools to be able to treat canonically equivalent characters as the same, otherwise, users may be unable to search, edit or operate on text properly.[^12] On the other end, users are aware of compatibility-equivalent characters due to their different semantic and visual features, so their equivalence becomes relevant only in specific circumstances (like textual search, for instance, or when the user tries to copy "fancy" characters from Word to a text box that only accepts plain text). 
 
 ### Normalization Forms
 
@@ -657,12 +657,12 @@ All in all, normalization is a fairly complex topic, and it's especially tricky 
     
 ## Unicode in the wild: caveats
 
-Unicode is the de facto only relevant character set in existence, with UTF-8 detaining the status of best encoding. 
+Unicode is really the only relevant character set in existence, with UTF-8 holding the status of "best encoding". 
 
 Unfortunately, internationalization support introduces a great deal of complexity into text handling, something that developers are often unaware of:
 
 1. First and foremost, there's still a massive amount of software that doesn't default to (or outright does not support) UTF-8, because it was either designed to work with legacy 8-bit encodings (like ISO-8859-1) or because it was designed in the '90s to use UCS-2 and it's permanently stuck with it or with faux _"UTF-16"_.
-Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API are constantly converting text from UTF-8 (which is nowadays the sole Internet standard) to their internal UTF-16 representation. This is a massive waste of CPU cycles, which while more abundant than in the past, are still a finite resource.
+Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API are constantly converting text from UTF-8 (which is the sole Internet standard) to their internal UTF-16 representation. This is a massive waste of CPU cycles, which while more abundant than in the past, are still a finite resource.
 
     ```c++
     // Linux x86_64, Qt 6.5.1. Encoding is `en_US.UTF-8`.
@@ -885,7 +885,7 @@ Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API
 
     The sequence is simply `U+FEFF`, just like in UTF-16 and 32, but encoded in UTF-8. While it's not forbidden by the standard per se, it has no real utility besides signaling that the file is in UTF-8 (it makes no sense talking about endianness with single bytes). Programs that need to parse or operate on UTF-8 encoded files should always be aware that a BOM may be present, and probe for it to avoid exposing users to unnecessary complexity they probably don't care about.
 
-5. Because of all of the reasons listed above, random, array-like access to Unicode strings is almost always broken - this is true even with UTF-32, due to grapheme clusters. It also follows that operations such as string slicing are not trivial to implement correctly, and the way languages such as Python and JavaScript do it (codepoint by codepoint) is IMHO arguably problematic.
+5. Because of all of the reasons listed above, random, array-like access to Unicode strings is almost always broken---this is true even with UTF-32, due to grapheme clusters. It also follows that operations such as string slicing are not trivial to implement correctly, and the way languages such as Python and JavaScript do it (codepoint by codepoint) is IMHO arguably problematic.
 
     A good example of a modern language that attempts to mitigate this issue is Rust, which has UTF-8 strings that disallow indexed access and only support slicing at byte indices, with UTF-8 validation at runtime:
     
@@ -917,7 +917,7 @@ Unicode is a massive standard, and it's constantly adding new characters[^15], s
 
 When handling text that may contain non-English characters, it's always best to stick to UTF-8 when possible and use Unicode-aware libraries for text processing. While writing custom text processing code may seem doable, it's easy to miss a few corner cases and confuse end users in the process.
 
-This is especially important because the main users of localized text and applications tend to often be the least technically savvy - those who may lack the ability to understand why the piece of software they are using is misbehaving, and can't search for help in a language they don't understand. 
+This is especially important because the main users of localized text and applications tend to often be the least technically savvy---those who may lack the ability to understand why the piece of software they are using is misbehaving, and can't search for help in a language they don't understand. 
 
 I hope this article may have been useful to shed some light on what is, in my opinion, an often overlooked topic in software development, especially among C++ users. If I had to be honest, I was striving for a shorter article, but I guess I had to make up for all those years I didn't post a thing :)
 
@@ -925,7 +925,7 @@ As always, feel free to comment underneath or send me a message if anything does
 
 [^1]: This wacky yet ingenious system made it possible to write in Arabic on ASCII-only channels, by using a mixture of Latin script and Western numerals with a passing resemblance with letters not present in English (i.e.,`3` in place of `ع`, ...).
 
-[^2]: Three actually - there was also UTF-1, a variable-width encoding that used 1 byte characters. It was pretty borked, so it never really saw much use.
+[^2]: Three actually: there was also UTF-1, a variable-width encoding that used 1 byte characters. It was pretty borked, so it never really saw much use.
 
 [^3]: 32-bit Unicode was initially resisted by both the Unicode consortium and the industry, due to its wastefulness while representing Latin text and everybody's heavy investment in 16-bit Unicode.
 
@@ -943,7 +943,7 @@ As always, feel free to comment underneath or send me a message if anything does
 
 [^10]: I've specified "ASCII _symbols_" because letters may potentially be part of a grapheme cluster, so splitting on an `e` may, for instance, split an `é` in two.
 
-[^11]: For instance, you most definitely expect that searching for "office" in a PDF also matches the words containing the ligature "ﬁ" -  [string search is another tricky topic by itself](https://unicode-org.github.io/icu/userguide/collation/string-search.html).
+[^11]: For instance, you most definitely expect that searching for "office" in a PDF also matches the words containing the ligature "ﬁ"---[string search is another tricky topic by itself](https://unicode-org.github.io/icu/userguide/collation/string-search.html).
 
 [^12]: And not only that: just think of how hard would it be to find a file, or to check a password or username, if there weren't ways to verify the canonical equivalence between characters.
 

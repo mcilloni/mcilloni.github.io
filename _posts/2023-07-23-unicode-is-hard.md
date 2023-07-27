@@ -222,10 +222,10 @@ Compared to a fixed-width encoding like UCS-2, a variable-width character encodi
 
 Excluding the dead-on-arrival UTF-1, there are 4 UTF encodings in use today:
 
-- UTF-8, a variable-width encoding that uses 1-byte characters;
-- UTF-16, a variable-width encoding that uses 2-byte characters;
-- UTF-32, a variable-width encoding that uses 4-byte characters;
-- UTF-EBCDIC, a variable-width encoding that uses 1-byte characters, designed to be used on IBM's EBCDIC systems (note: I think it's safe to argue that using EBCDIC in 2023 edges very close to being a felony).
+- UTF-8, a variable-width encoding that uses 1-byte characters
+- UTF-16, a variable-width encoding that uses 2-byte characters
+- UTF-32, a variable-width encoding that uses 4-byte characters
+- UTF-EBCDIC, a variable-width encoding that uses 1-byte characters designed for IBM's EBCDIC systems (note: I think it's safe to argue that using EBCDIC in 2023 edges very close to being a felony)
 
 ### UTF-16
 

@@ -253,7 +253,7 @@ Notice that in the example above I had to specify an endianness for the bytes (l
 
 The standard calls for UTF-16 streams to start with a **Byte Order Mark** (BOM), represented by the special codepoint `U+FEFF`. Reading `0xFEFF` indicates that the endianness of a text block is the same as the endianness of the decoding system; reading those bytes flipped, as `0xFFFE`, indicates opposite endianness instead.
 
-As an example, let's assume a big-endian system has generated the sequence `[0xFE, 0xFF, 0x61, 0x00]`. \
+As an example, let's assume a big-endian system has generated the sequence `[0xFE, 0xFF, 0x00, 0x61]`. \
 All systems, LE or BE, will detect that the first two bytes are a surrogate pair, and read them as they are depending on their endianness. Then:
 
 - A _big-endian_ system will decode `U+FEFF`, which is the BOM, and thus will assume the text is in UTF-16 in its same byte endianness (BE);

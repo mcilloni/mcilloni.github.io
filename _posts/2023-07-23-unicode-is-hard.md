@@ -84,7 +84,7 @@ The example above assumes, like a large amount of code written in the last few d
 
 However, as computers started to spread worldwide it became clear that it was necessary to devise character sets capable to represent all the characters required in a given locale. For instance, Spanish needs the letter `ñ`, Japan needs the `¥` symbol and support for Kana and Kanji, and so on. 
 
-All of this led to a massive proliferation of different character encodings, usually tied to a given language, area or locale. These varied from 8-bit encodings, which either extended ASCII by using its unused eighth bit (like **ISO-8859-1**) or completely replaced its character set (like **KOI8-R**), to multi-byte encodings for Asian languages with thousands of characters like **Shift-JIS** and **Big5**. 
+All of this led to a massive proliferation of different character encodings, usually tied to a given language, area or locale. These varied from 8-bit encodings, which either extended ASCII by using its unused eighth bit (like **ISO-8859-1**) or completely replaced its character set (like **KOI-7**), to multi-byte encodings for Asian languages with thousands of characters like **Shift-JIS** and **Big5**. 
 
 This turned into a huge headache for both developers and users, as it was necessary to know (or deduce via hacky heuristics) which encoding was used for a given piece of text, for instance when receiving a file from the Internet, which was becoming more and more common thanks to email, IRC and the World Wide Web.
 

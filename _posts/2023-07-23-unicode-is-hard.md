@@ -874,7 +874,7 @@ Software libraries and frameworks like Qt, Java, Unreal Engine and the Win32 API
     パンダ
     ```
 
-4. To facilitate UTF-8 detection when other encodings may be in use, some platforms annoyingly add a UTF-8 BOM (`EF BB 0D`) at the beginning of text files. Microsoft's Visual Studio is historically a major offender in this regard:
+4. To facilitate UTF-8 detection when other encodings may be in use, some platforms annoyingly add a UTF-8 BOM (`EF BB BF`) at the beginning of text files. Microsoft's Visual Studio is historically a major offender in this regard:
 
     ```shell
     $  file OldProject.sln

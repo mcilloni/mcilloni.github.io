@@ -90,7 +90,7 @@ This turned into a huge headache for both developers and users, as it was necess
 
 Most crucially, multibyte encodings (a necessity for Asian characters) meant that _the assumption "one char = one byte" didn't hold anymore_, with the small side effect of breaking all code in existence at the time. 
 
-For a while, the most common solution was to use a single encoding for each language, and then hope for the best. This often led to garbled text (who hasn't seen the infamous `�` character at least once), so much so that a specific term was coined to describe it - _"mojibake"_, from the Japanese _"文字化け" _("character transformation")_.
+For a while, the most common solution was to use a single encoding for each language, and then hope for the best. This often led to garbled text (who hasn't seen the infamous `�` character at least once), so much so that a specific term was coined to describe it - _"mojibake"_, from the Japanese _"文字化け"_ _("character transformation")_.
 
 ![KOI8-R text mistakenly written on an envelope as ISO-8859-1 text]({{ "/public/mojibake.jpg" | absolute_url }} "I guess they thought it was actual Russian text"){: .center-image}
 

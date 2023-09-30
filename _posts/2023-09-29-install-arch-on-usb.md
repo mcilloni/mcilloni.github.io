@@ -49,6 +49,8 @@ I will cover all three options in the next sections.
 
 One important note: I deliberately decided to leave kernel images unencrypted (in UKI form) in the ESP, sticking with full encryption for just the root filesystem. My main concern is about protecting the data stored on the drive in case it's lost or broken, and I assume nobody will attempt evil maid attacks. [^7] Encrypting the kernel is pointless without a signed bootloader and kernel - something you are not guarranteed to have when booting from a USB drive. 
 
+I also will not show how to set-up UEFI Secure Boot. While having Secure Boot enabled is a good thing in general, it makes setting the system up vastly more complex, for debatable benefits. This setup is in general not meant to be used for security critical systems, but to provide a convenient way to carry a working environment around between machines you completely control. 
+
 ## 1. Partitioning
 
 From either the Arch Linux ISO or your existing system, run a disk partitioning tool. I'm personally partial to `gdisk`, but `parted` and `fdisk` are also fine [^8]. `parted` also has a graphical frontend, `gparted`, which is very easy to use, in case you are afraid to mess up the partitioning and prefer having clear feedback on what you're doing [^9].
@@ -435,9 +437,87 @@ $ sudo chroot /tmp/mnt /bin/bash
 [root@chroot /]# pacman-key --populate archlinux
 ```
 
-### 3.2.2. Configuring the base system
+## 3.3. Cloning an existing system
+
+Instead of installing the system from scratch, you may clone an existing system instead. Just remember after the move to
+
+1. fix `/etc/fstab` with the new `PARTUUID`s
+2. give the system an unique configuration (i.e., change the hostname) in order to avoid clashes
+3. do not transfer the contents of the ESP - if you use UKI and mount it at `/boot/efi`, you will regenerate its contents later when you reapply the steps from above.
+
+There are 3 feasible ways to do this:
+
+1. Use `dd` to clone a partition block by block. This methods has a few advantages, and quite a bit of downsides:
+    + **PRO**: because it literally clones an entire disk, byte per byte, to another, it is the most conservative method among all.
+    - **CON**: because it clones an entire disk byte per byte, issues such as fragmentation and data in unallocated sectors are copied.
+    - **CON**: because it clones an entire disk byte per byte, the target partition or disk must be at least as large as the source, or the source must be shrunk beforehand, which is not always possible.
+
+    If you opt for this solution, just run `dd` and copy an existing partition to the LUKS container:
+
+    `# dd if=/path/to/source/partition of=/dev/mapper/ExtLUKS bs=1M status=progress`
+
+2. Use `rsync` to clone a filesystem onto a new partition. This method is the most flexible,because it's completely agnostic regarding the source and destination filesystems, as long as the destination can fit all contents from the source. Just mount everything where it's supposed to go, and run (as root):
+    
+    `# rsync -qaHAXS /{bin,boot,etc,home,lib,opt,root,sbin,srv,usr,var} /path/to/dest`
+
+    The root has now been cloned, but it's missing some base directories.
+
+    Given I assume we are booting from an Arch Linux system, just reinstall `filesystem` inside the new root:
+    ```
+    $  sudo pacman -r /tmp/shoot --config /tmp/shoot/etc/pacman.conf -S filesystem
+    ```
+    This will fixup any missing directory and symlink, such as `/dev`, `/proc`, ... Notice that only for this time I have used the `-r` parameter. This changes pacman's root directory, and should always used with extreme care.
+
+3. Use Btrfs or ZFS snapshotting and replication facilities to migrate existing subvolumes/datasets.
+
+    Both Btrfs and ZFS support incremental snapshotting and sending/receiving them as incremental data streams. This is extremely convenient, because replication ensures that files are transferred perfectly (with the right permissions, metadata, ...) without having to copy any unnecessary empty space.
+
+    I) In order to duplicate a system using Btrfs, partition and format the disk as described above, and then snapshot and send the subvolumes to the new disk:
+
+    ```
+    # mount -o subvol=/ /path/to/root/dev /tmp/src
+    # mount -o subvol=/ /dev/mapper/ExtLUKS /tmp/mnt
+    # btrfs su snapshot -r /tmp/src/@{,-mig}
+    Create a readonly snapshot of '/tmp/src/@' in '/tmp/src/@-mig'
+    # btrfs su snapshot -r /tmp/src/@home{,-mig}
+    Create a readonly snapshot of '/tmp/src/@home' in '/tmp/src/@home-mig'
+    # btrfs send /tmp/src/@-mig | btrfs receive /tmp/mnt
+    At subvol /tmp/src/@-mig
+    At subvol @-mig
+    # btrfs send /tmp/src/@home-mig | btrfs receive /tmp/mnt
+    At subvol /tmp/src/@home-mig
+    At subvol @home-mig
+    ```
+
+    The system is now been correctly transferred. If you are running the commands through a network (like via SSH), you may want to either compress and decompress the stream or use `pv` to monitor the transfer speed.
+
+    Rename the subvolumes to their original names and delete the now unnecessary snapshots [^14]:
+
+    ```
+    # perl-rename -v 's/\-mig//g' /tmp/mnt/@* 
+    /tmp/mnt/@-mig -> /tmp/mnt/@
+    /tmp/mnt/@home-mig -> /tmp/mnt/@home
+    # btrfs su delete /tmp/src/@*-mig
+    Delete subvolume (no-commit): '/tmp/src/@-mig'
+    Delete subvolume (no-commit): '/tmp/src/@home-mig'
+    # umount /tmp/{src,mnt}
+    # mount -o subvol=@,compress=lzo /dev/mapper/ExtLUKS /tmp/mnt
+    ```
+
+    Unmount the root and mount the root subvolume. You are now ready to move to the next step.
+
+    II) With ZFS, the process is very similar to Btrfs, with a few different steps.
+    
+    Like above, snapshot your root disk:
+
+    // FILL LATER
+
+
+## 3.4. Configuring the base system
 
 Whatever path you took, you should now be in a working Arch Linux chroot. 
+
+### 3.4.1. Basic configuration
 
 Most of the pre-boot configuration steps now are basically the same as a normal Arch Linux install:
 
@@ -458,8 +538,8 @@ PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults   
 
 ```
 # /etc/fstab for Btrfs with LUKS
-/dev/mapper/ExtLUKS                             /            btrfs   defaults,subvol=@,compression=lzo       0 0
-/dev/mapper/ExtLUKS                             /home        btrfs   defaults,subvol=@home,compression=lzo   0 0
+/dev/mapper/ExtLUKS                             /            btrfs   defaults,subvol=@,compress=lzo       0 0
+/dev/mapper/ExtLUKS                             /home        btrfs   defaults,subvol=@home,compress=lzo   0 0
 PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults                                0 2
 ```
 
@@ -508,12 +588,12 @@ KEYMAP=us
 EOF
 ```
 
-### 3.2.3. Configuring the kernel
+### 3.4.2. Configuring the kernel
 
 Configuring the system for booting on multiple systems is easier than it sounds thanks to how good Linux is at automatic configuration, but it still requires a bit of preliminary steps:
 
 0. (optional) First, install ZFS (if you are using it); if using the LTS kernel, I recommend using `zfs-dkms`, while for a more up-to-date kernel a "fixed" build such as `zfs-linux` is probably safer. 
-1. In order to support systems with an NVIDIA GPU, install the `nvidia` driver [^13].
+1. In order to support systems with an NVIDIA GPU, install the Nvidia driver (`nvidia` or `nvidia-lts`, depending on what you've chosen) [^13].
 2. Install the microcode for _both_ Intel and AMD CPUs (`intel-ucode` and `amd-ucode` respectively). Only the correct one will be loaded at boot time.
 
 With the kernel and all necessary modules installed, we can now generate a bootable image. 
@@ -569,7 +649,198 @@ HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encryp
 Notice how the `keyboard` and `keymap` hooks have been specified before either the `zfs` or `encrypt` hooks.
 This ensures that the keyboard and keymap are correctly configured before reaching the root encryption password prompt.
 
-[^1]: and Wi-Fi. Wi-Fi was a PITA too, and don't get me started on *\*retches\** USB ADSL modems with Windows-only drivers shipped on mini CDs.
+Before triggering the generation of our image, we must enable UKI support in the fallback preset (and disable the default one):
+
+```
+# cat /etc/mkinitcpio.d/linux-lts.preset 
+# mkinitcpio preset file for the 'linux-lts' package
+
+#ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux-lts"
+ALL_microcode=(/boot/*-ucode.img)
+
+PRESETS=('fallback')
+
+#default_config="/etc/mkinitcpio.conf"
+#default_image="/boot/initramfs-linux-lts.img"
+#default_uki="/boot/efi/EFI/Linux/arch-linux-lts.efi"
+#default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
+
+#fallback_config="/etc/mkinitcpio.conf"
+#fallback_image="/boot/initramfs-linux-lts-fallback.img"
+fallback_uki="/boot/efi/EFI/BOOT/Bootx64.efi"
+fallback_options="-S autodetect"
+```
+
+Run `mkinitcpio -p linux-lts` to finally generate the UKI under `/boot/efi/EFI/BOOT/Bootx64.efi`. This is the location conventionally associated with the UEFI Fallback bootloader, which will make the external drive bootable on any UEFI system without the need of any configuration or bootloader, as long as booting from USB is allowed (and UEFI Secure Boot is off).
+
+```
+# mkdir -p /boot/efi/EFI/BOOT # create the target directory
+# mkinitcpio -p linux-lts
+[...]
+```
+
+3.4.2. Installing a bootloader (optional)
+
+In principle, the instructions above make having a bootloader at all pretty redundant. You can also always tinker with command line arguments using the UEFI Shell, which can be either already installed on the machine you are booting on or copied in the ESP under `\EFI\Shellx64.efi`.
+
+In case you want to install a bootloader, change the `fallback_uki` argument to a different path (i.e. `/boot/efi/EFI/Linux/arch-linux-lts.efi`) and then just follow [Arch Wiki's instructions on how to set up `systemd-boot`](https://wiki.archlinux.org/title/Systemd-boot). Ensure that `bootctl install` copies the bootloader to `\EFI\BOOT\Bootx64.efi`, or it will not get picked up by the UEFI firmware automatically.
+
+# 4. Booting the system
+
+If you've followed the instructions above, you should now have be able to boot onto the new system successfully, without any troubleshoot necessary. 
+
+You can either test the new system by booting from native hardware, or inside a virtual machine.
+
+## 4.1. Setting up a VM
+
+In order to spin up a VM, you need a working hypervisor. If you intend to run the VM on a Linux host, `Qemu` with `KVM` is an excellent choice. [^15]
+
+You can either use Qemu via `libvirt` and tools such as `virt-manager`, or use plain QEMU directly. The former tends to be way easier to setup, but more troublesome to troubleshoot; `libvirt` is unfortunately full of abstractions that make configuring Qemu harder than just invoking it with the right parameters. On the other hand, `libvirt` automatically handles unpleasant parts such as configuring network bridges and `dnsmasq`, which you are otherwise required to configure manually.
+
+Regardless of what approach you prefer, you should install UEFI support for guests, which is usually provided in packages called `ovmf`, `edk2-ovmf`, or similar. 
+
+### 4.1.1. Using `libvirt`
+
+If you are using `libvirt`, you can use `virt-manager` to create a new VM (or dabble with `virsh` and XML directly, which may be annoying). If you opt for this approach, remember to:
+
+1. Select _the device_, and not partitions or `/dev/mapper` devices. The disk must be unmounted and no partitions should be in use. Pick "Import an image" and then select `/dev/disk/by-id/usb-XXX`, without `-partN`, via the _"Browse local"_ button.
+
+2. Select "Customize configuration before install", or you won't be able to enable UEFI support. In the configuration screen, in the Overview pane, select the "Firmware" tab and pick an x86-64 `OVMF_CODE.fd`. If you don't see any, check that you've installed all the correct packages.
+
+3. _(optional)_ If you wish, you may enable VirGL in order to have a smoother experience while using the VM. If you're interested, toggle the "OpenGL" option in "Display Spice" (after disabling the SPICE socket, by setting "Listen type" to `None`). Check that the adapter model is "Virtio", and enable 3D acceleration. [^16]
+
+### 4.1.2. Using raw `qemu`
+
+Using plain Qemu in place of `libvirt` is undoubtedly less convenient. It definitely requires more tinkering for networking (especially if you opt for SLIRP, which is slow and limited), with the advantage of being more versatile and not requiring setting up `libvirt` - which tends to be problematic on machines with complex firewall rules and network setups.
+
+First, make a copy of the default UEFI variables file:
+
+```
+$ cp /usr/share/ovmf/x64/OVMF_VARS.fd ext_vars.fd
+```
+
+Then, temporarily take ownership of the disk device, in order to avoid having to run `qemu` as root:
+
+```
+$ sudo chown $(id -u):$(id -g) /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0
+```
+
+Finally, run Qemu with the following command line. In this case, I'll use SLIRP for simplicity, and enable VirGL for a smoother experience:
+
+```
+$ qemu-system-x86_64 -enable-kvm -cpu host -m 8G -smp sockets=1,cpus=8,threads=1 -drive if=pflash,format=raw,readonly=on,file=/usr/share/ovmf/x64/OVMF_CODE.fd -drive if=pflash,format=raw,file=$PWD/ext_vars.fd -drive if=virtio,format=raw,cache=none,file=/dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0 -nic user,model=virtio-net-pci -device virtio-vga-gl -display sdl,gl=on -device intel-hda -device hda-duplex
+```
+
+## 4.2. Booting on bare hardware
+
+The disk previously created can be booted on any UEFI-enabled x86-64 system, as long as booting from USB is allowed and Secure Boot is disabled.[^17] 
+
+At machine startup, press the _"Boot Menu"_ key for your system (usually F12 or F8, but may vary considerably depending on the vendor) and select the external SSD. The disk may be referred to as "fallback bootloader" - this is normal, given that we've installed the UKI image in the fallback bootloader location.
+
+## 4.3. First boot
+
+If you did everything right in the last few steps, the boot process should stop at a password prompt from either `cryptsetup` (LUKS) or `zpool` (ZFS). 
+
+Insert the password and press enter. If everything went well, you should now be greeted by a login prompt.
+
+Login as root, and proceed with the last missing configuration steps:
+
+1. Enable and start up the network manager of your choice you've installed previously, such as `NetworkManager`:
+   `# systemctl enable --now NetworkManager`
+
+   If you are using a wired connection with no special configuration required, you should see any relevant IPs under `ip address`, and Internet should be working.
+
+   If you need special configuration, or wireless, use `nmtui` to configure the network.
+2. With a booted instance of `systemd`, you can now easily set up everything else you are missing, such as:
+   - a **hostname** with `hostnamectl set-hostname`;
+   - a **timezone** with `timedatectl set-timezone` (you may need to adjust it depending on where you boot from);
+   - if you know as a fact you are always going to boot from systems with an RTC on localtime, set `timedatectl set-local-rtc 1` to avoid having to adjust the time every time you boot. Note that this is arguably one of the most annoying parts about a portable system; I recommend setting every machine you own to UTC and properly configuring Windows to use UTC instead.
+   - a different locale (generated via `locale-gen`), in order to change your system's language settings.
+   
+     As an example:
+        * Use `localectl set-locale LANG=en_US.UTF-8` to set the default locale to `en_US.UTF-8`
+        * Use `localectl set-keymap de` to change the keyboard layout to German.
+
+## 4.4. Installing a desktop environment
+
+The most useful part about a portable system is to carry a workspace around, so you can work on your projects wherever you are. 
+
+In order to do this, you need to install some kind of desktop environment, which may range from minimal (`dwm`, `sway`, `fluxbox`) to a full environment (like Plasma, GNOME, XFCE, Mate, ...). 
+
+Just remember that you are going to use this system on a variety of machines, so it's useful to avoid anything that requires an excessive amount of tinkering to function properly. For instance, if one or more of the systems you plan to target involve NVIDIA GPUs, you may find running Wayland more annoying than just sticking with X11.
+
+### 4.4.1. Example: Installing KDE Plasma
+
+I'm a big fan of KDE Plasma (even though I've been using GNOME recently, for a few reasons), so I'll use it as an example.
+
+In general, all DEs require you to install a metapackage to pull in all the basic components (like the KF5 frameworks) and an (optional display manager), plus some or all the applications that are part of the DE.
+
+If you plan on running X11, install the `xorg` package group, and then install `plasma`:
+
+```
+# pacman -S plasma plasma-wayland-session sddm kde-utilities
+```
+
+If you are using a display manager, enable it with `systemctl enable --now sddm`. 
+
+Otherwise, either configure your `.xinitrc` to start Plasma by appending
+
+```.xinitrc
+export DESKTOP_SESSION=plasma
+exec startplasma-x11
+```
+
+and run `startx`.
+
+If you prefer using Wayland, just straight run `startplasma-wayland` instead.
+
+# 5. Troubleshooting
+
+If you followed all steps listed above, you *should* have a working portable system. If this is not the case, this is the part where you should start troubleshooting.
+
+## 5.1. `Device not found` or `No pool to import` during boot
+
+If the initrd fails to find the root device (or the ZFS pool), it means that the root device t  it's likely due to two possible reasons:
+
+1. The initrd is missing some drivers.
+
+   The `fallback` initrd is supposed to contain all the storage and USB drivers needed to boot on any system, but it's possible that some may be missing if your USB controller is either particularly exotic or particularly quirky (e.g. Intel Macs). 
+   
+   First, on the affected system, try to probe what drivers are in use for your USB controller. You can use `lspci -k` from a system you can mount the external disk from:
+
+   ```
+   $ lspci -k
+   [..]
+   0a:00.3 USB controller: Advanced Micro Devices, Inc. [AMD] Family 17h (Models 00h-0fh) USB 3.0 Host Controller
+        Subsystem: Gigabyte Technology Co., Ltd Family 17h (Models 00h-0fh) USB 3.0 Host Controller
+        Kernel driver in use: xhci_hcd
+        Kernel modules: xhci_pci
+    [..]
+   ```
+   
+   Afterwards, add the relevant module to the MODULES array in `/etc/mkinitcpio.conf`, and regenerate the initrd.
+
+2. The kernel command line is incorrect.
+
+   This happens either due to a bad `root` or `zfs` line in `/etc/kernel/cmdline`, or because a bootloader or firmware are passing spurious arguments to the UKI.
+
+   Double check that the `root` or `zfs` line in `/etc/kernel/cmdline` is correct. Some bootloaders such as rEFInd support automatic discovery of bootable files on ESPs; it may be that the bootloader is wrongly assuming the UKI is a EFISTUB-capable kernel image and passing incorrect flags instead.
+
+   In any case, ascertain that the kernel is actually receiving the correct parameters by running 
+   
+   ```
+   # cat /proc/cmdline
+   ```
+
+   from the initrd recovery shell.
+   
+
+2. The kernel command line is wrong.
+
+   This is 
+
+[^1]: and Wi-Fi. Wi-Fi was a PITA too, and don't get me started on *\*retches\** USB ADSL modems with Windows-only drivers on mini CDs.
 
 [^2]: YMMV. Some devices (e.g. Macs) are notoriously picky about booting from USB drives, but that's not our system's fault.
 
@@ -594,3 +865,11 @@ This ensures that the keyboard and keymap are correctly configured before reachi
 [^12]: If you compile pacman and/or use an Arch chroot, it's absolutely doable from any distro, really, as long as it's kernel is new enough to run an Arch chroot. 
 
 [^13]: I don't recommend using `nvidia-open` or Nouveau as of the time of writing (September '23), due to the immature state of the first is and the utter incompleteness the latter. The closed source `nvidia` driver is still the best choice for NVIDIA GPUs, even if it sucks due to how "third-party" it feels (the non-Mesa userland is particularly annoying).
+
+[^14]: Notice that I'm using `perl-rename` in place of `rename`, because I honestly think that the latter is just terrible. `perl-rename` is a Perl script that can be installed separately (on Arch is in the `perl-rename` package) and it's just better than util-linux' `rename` in every way possible.
+
+[^15]: On Windows, you can use Hyper-V, which has the advantage of being already included in Windows and supports using real device drives as virtual disks.
+
+[^16]: This feature is known to be buggy under the closed-source NVIDIA driver, so beware.
+
+[^17]: Using Secure Boot with an external disk you plan on carrying around is very troublesome for a variety of reasons - first and foremost that you'd either have to enroll your personal keys on every system you plan on booting from, or plan on using Microsoft's keys, which means fighting with `MokList`s, `PreLoader.efi`, and going through a lot of pain for very dubious benefits.

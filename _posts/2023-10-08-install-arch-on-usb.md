@@ -795,15 +795,15 @@ and run `startx`.
 
 If you prefer using Wayland, just straight run `startplasma-wayland` instead.
 
-# 5. Troubleshooting
+# 5. Basic troubleshooting
 
-If you followed all steps listed above, you *should* have a working portable system. If this is not the case, this is the part where you should start troubleshooting.
+If you followed all steps listed above, you *should* have a working portable system. Most troubleshooting steps after the initial booting should be identical to those of a normal Arch Linux system. Below you'll find a very basic list of a few common issues that may arise when attempting to boot the system on different machines.
 
 ## 5.1. `Device not found` or `No pool to import` during boot
 
-If the initrd fails to find the root device (or the ZFS pool), it means that the root device t  it's likely due to two possible reasons:
+If the initrd fails to find the root device (or the ZFS pool), it means that the initrd failed to correctly mount the correct drive. This it's often due to the following three reasons:
 
-1. The initrd is missing some drivers.
+1. The initrd is missing the required drivers. The disk is not appearing under /dev because of this.
 
    The `fallback` initrd is supposed to contain all the storage and USB drivers needed to boot on any system, but it's possible that some may be missing if your USB controller is either particularly exotic or particularly quirky (e.g. Intel Macs). 
    
@@ -821,7 +821,7 @@ If the initrd fails to find the root device (or the ZFS pool), it means that the
    
    Afterwards, add the relevant module to the MODULES array in `/etc/mkinitcpio.conf`, and regenerate the initrd.
 
-2. The kernel command line is incorrect.
+2. The kernel command line is incorrect. The initrd either has the wrong device set, or the kernel is not receiving the correct parameters.
 
    This happens either due to a bad `root` or `zfs` line in `/etc/kernel/cmdline`, or because a bootloader or firmware are passing spurious arguments to the UKI.
 
@@ -834,11 +834,43 @@ If the initrd fails to find the root device (or the ZFS pool), it means that the
    ```
 
    from the initrd recovery shell.
+
+   If you are using ZFS and you only specified the target pool instead of the root dataset, remember to set `bootfs` correctly first.
    
+3. **(ZFS only)** An incorrect cachefile has been provided to the initrd. The initrd is trying to use potentially incorrect pool data instead of probing /dev.
 
-2. The kernel command line is wrong.
+    The `zfs` hook embeds `/etc/zfs/zpool.cache` into the initrd being generated. While this is often useful to reduce boot times, especially with large multi-disk pools, it may cause issues if the cachefile is stale or incorrect. Return back to the setup system, chroot, remove the cachefile and regenerate the UKI. The initrd should now attempt discovery the root pool via `zpool import -d /dev` instead of using the cachefile (or any `zfs_import_dir` you may have set via the kernel command line).
 
-   This is 
+If none of the previous steps work, you may want to try to boot the system from a different machine to ensure there's not a problem in the setup itself.
+
+## 5.2 The keyboard doesn't work properly at the password prompt
+
+1. If the keyboard doesn't work when typing the encryption password, it's probably due to the keyboard hook not being run before the encryption hooks (whatever you are using). Ensure that `keyboard` is listed before `encrypt` or `zfs` in `/etc/mkinitcpio.conf`.
+
+2. If the keyboard is working, but the password is not being accepted, it may be due to an incorrectly set keyboard layout. Ensure that `/etc/vconsole.conf` is set correctly, and that the `keymap` hook is being run before the encryption hooks.
+
+## 5.3. The system boots, but the display is not working
+
+This is rarely an issue with Intel or AMD GPUs, but it's pretty common with NVIDIA GPUs, especially on buggy laptops with Optimus hybrid graphics.
+
+1. Remember to always enable KMS modules early, in order to avoid any issues when booting on systems with an NVIDIA discrete GPU. Append `nvidia-drm.modeset=1` to the kernel command line, and add the `kms` hook right after `modconf` in `/etc/mkinitcpio.conf`. This should force whatever KMS driver you are using to load early in the boot process, which should provide a working display as soon as the initrd is loaded.
+
+Note that with NVIDIA the framebuffer resolution is often not increased automatically, which may lead to a poor CLI experience. This is a common issue that unfortunately tends only to affect NVIDIA.
+
+2. Add `nvidia nvidia_modeset nvidia_uvm nvidia_drm` to the `MODULES` array in `/etc/mkinitcpio.conf`. This will ensure that the NVIDIA driver is always loaded early in the boot process. The module will be ignored and unloaded if not needed on the system currently in use.
+
+3. Do not use any legacy kernel option such as `video=` or `vga=`. There are lots of old guides still suggesting to use them, but they are not compatible with KMS and should not be used anymore.
+
+# 6. Conclusion
+
+This post is a very basic guide on how to set up Arch Linux on a portable SSD, which I think feels less like a manual and more like my personal notes. 
+
+This is intentional: while nothing in this guide is unique (everything can be found in the Arch Wiki, in forums or in other blogs), I felt that it was worth summarising my personal experience in a single place, hopefully with the intent of it being useful to someone else outside of myself.
+
+I suspect that after installing Linux (and Arch in particual) an infinite number of times, I grew a bit desensitized to how tricky and error-prone the process can be, especially for newcomers and people who are not accustomed to system administration and troubleshooting. This is hopefully a good starting point for anyone who wants to try out Arch Linux, and maybe also get a cool portable system out of it.
+
+Thanks a lot for reading, and as always feel free to contact me if you find anything incorrect, imprecise or hard to understand.
+
 
 [^1]: and Wi-Fi. Wi-Fi was a PITA too, and don't get me started on *\*retches\** USB ADSL modems with Windows-only drivers on mini CDs.
 

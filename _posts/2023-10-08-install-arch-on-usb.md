@@ -51,7 +51,50 @@ One important note: I deliberately decided to leave kernel images unencrypted (i
 
 I also will not show how to set-up UEFI Secure Boot. While having Secure Boot enabled is a good thing in general, it makes setting the system up vastly more complex, for debatable benefits. This setup is in general not meant to be used for security critical systems, but to provide a convenient way to carry a working environment around between machines you completely control. 
 
-## 1. Partitioning
+# 0. (Optional) Obtaining a viable ZFS setup environment
+
+Unfortunately, ZFS on Linux is an out-of-tree filesystem. This basically means that it's not bundled with the kernel as usual, but instead distributed by an independent project and has to be compiled and installed separately. This is due to a complex licensing incompatibility between the CDDL license used by OpenZFS, and the GPL license used by the Linux kernel, which makes it impossible to ever bundle ZFS and Linux together.
+
+If you intend on using ZFS, you must follow these steps first; if not, just skip to the section 1.
+
+This procedure varies depending on the distribution you are using:
+
+## 0.1. Arch Linux
+
+Arch doesn't distribute ZFS due to the aforementioned licensing issues, but it's readily available and readily maintained by the [ArchZFS project](https://github.com/archzfs/archzfs), both in form of AUR `PKGBUILD`s and in the third party repository `archzfs`.
+
+The packages you are going to need are `zfs-utils` and a kernel module, which can either be a kernel-specific package (i.e. `zfs-linux-lts`), or a DKMS one (i.e. `zfs-dkms`).
+
+If you opt to install the packages from ArchZFS, add the `[archzfs]` repository to your `pacman.conf` (look at [Arch Wiki](https://wiki.archlinux.org/title/Unofficial_user_repositories#archzfs) for the correct URL), rembering to import the PGP key.
+
+If you need to boot from an ISO, it's a bit more complicated, so I won't specify the details here because it would be quite long. Give a look at [this repo](https://github.com/eoli3n/archiso-zfs) for a quick way to generate one. If you feel adventurous, you can also try to use an ISO with ZFS support from another distribution (such as Ubuntu) and follow the instructions below to set up a working environment.
+
+## 0.2. Other Linux distributions
+
+If you are starting from another distribution, you will need to visit the [OpenZFS on Linux](https://openzfs.github.io/openzfs-docs/Getting%20Started/index.html) website and follow the instructions for your distribution (if included).
+
+This will generally involve adding a third party repository (except for Ubuntu, which has ZFS in the main repos), and following the instructions.
+
+For instance, on Debian it's recommended to enable the _backports_ repository, in order to install a more up to date version. This also requires to modify APT's settings by pinning the backports repository to a higher priority for the ZFS packages.
+
+```
+# cat <<'EOF' > /etc/apt/sources.list.d/bookworm-backports.list
+deb http://deb.debian.org/debian bookworm-backports main contrib
+deb-src http://deb.debian.org/debian bookworm-backports main contrib
+EOF
+# cat <<'EOF' > /etc/apt/preferences.d/90_zfs
+Package: src:zfs-linux
+Pin: release n=bookworm-backports
+Pin-Priority: 990
+# apt update
+# apt install dpkg-dev linux-headers-generic linux-image-generic
+# apt install zfs-dkms zfsutils-linux
+[...]
+```
+
+Regardless of what you are using, you should now have a working ZFS setup. You can verify this by running `zpool status`; if it prints `no pools available` instead of complaining about missing kernel modules, you are good to start setting up the drive.
+
+# 1. Partitioning
 
 From either the Arch Linux ISO or your existing system, run a disk partitioning tool. I'm personally partial to `gdisk`, but `parted` and `fdisk` are also fine [^8]. `parted` also has a graphical frontend, `gparted`, which is very easy to use, in case you are afraid to mess up the partitioning and prefer having clear feedback on what you're doing [^9].
 
@@ -68,7 +111,7 @@ The partitioning scheme is generally up to you, with the bare minimum being:
 
     Also, it goes without saying, do not hibernate a system that runs from a USB drive, unless you plan on resuming it on the same machine.
 
-### 1.1 Creating the partition label
+## 1.1 Creating the partition label
 
 Feel free to skip to the next step if you already have a partition label on your drive, with two sufficiently sized partitions for the ESP and the root filesystem, and you don't want to use the whole drive.
 
@@ -310,6 +353,24 @@ Before moving to the next step, remember to unmount the root subvolume.
 My personal favourite, ZFS is a rocksolid system that's ubiquitous in data storage, thanks to its impressive stability record and advanced features such as deduplication, built-in RAID, ... 
 
 Albeit arguably less flexible than Btrfs, which was originally designed as a Linux-oriented replacement for the CDDL-encumbered ZFS, in my experience ZFS tends to be vastly more stable and reliable in day to day use. In the last 6 years, I have almost exclusively used ZFS on all my computers, and I have yet to lose any data due to ZFS itself. [^11]
+
+ZFS is quite different compared to other filesystems. Instead of filesystems, ZFS works on _pools_, which consists in collections of one or more block devices (potentially in _RAID_ configurations). Every pool can be divided into a hierarchy of _datasets_, which are roughly equivalent to subvolumes in Btrfs. 
+
+Datasets can be mounted independently, and can each have their own properties, such as compression, quotas, and so on, which may either be set per-dataset or inherited from the parent dataset.
+
+Compared to Btrfs, ZFS manages its own mountpoints as inherent properties of the dataset. This is both incredibly useful and bothersome; on one hand, having mountpoints intrinsicly related to datasets allows for easier management and more clarity than legacy mounting, but on the other hand it may turn confusing and inflexible when managing complex setups.
+
+### 2.2.1. Creating the ZFS pool
+
+Our case is quite simple, given that we only have a single drive. 
+
+Create a new dataset called `extzfs` (or whatever you prefer), being careful to specify an `altroot` via `-R`. Otherwise, the new mountpoints will override your system ones as soon as you set up the pool:
+
+```
+# zpool create -m none -R /tmp/mnt extzfs /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0-part2
+```
+
+You may have to specify `-f` if the partition wasn't empty before. Note the `-m none` option, which will set no mountpoint for the root dataset of the pool itself. Compared to Btrfs, ZFS doesn't expose datasets as subdirectories of their parent pool, so it makes little sense to allow mounting the root dataset.
 
 # 3. Installing Arch Linux
 

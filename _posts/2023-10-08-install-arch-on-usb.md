@@ -372,6 +372,82 @@ Create a new dataset called `extzfs` (or whatever you prefer), being careful to 
 
 You may have to specify `-f` if the partition wasn't empty before. Note the `-m none` option, which will set no mountpoint for the root dataset of the pool itself. Compared to Btrfs, ZFS doesn't expose datasets as subdirectories of their parent pool, so it makes little sense to allow mounting the root dataset.
 
+### 2.2.1. Creating an encrypted dataset root
+
+As mentioned before, we are going to use native ZFS encryption, which is generally considered safe, but it _may_ not as water-tight and battle-tested as LUKS. This is generally not a problem for most people but the most paranoid. If you count yourself among their ranks, remember that you can always use LUKS on top of ZFS. It may end up being more complex, but it's a viable option.
+
+In order to create an encrypted dataset, we need to create an encrypted dataset that will act as the encryption root for all other datasets. We will call it `extzfs/encr`:
+
+```
+# zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt -o mountpoint=none -o compression=lz4 extzfs/encr
+Enter new passphrase:
+Re-enter new passphrase:
+```
+
+Notice that we are using the `passphrase` key format alongsize the `prompt` key location. This means that ZFS will expect the encryption key in the form of a password entered by the user. Another option would be to use a key file, which is arguably more secure but also incredibly more cumbersome to use, so I'll leave it as an exercise to the reader how to use one.
+
+Like with LUKS, I recommend picking a safe password that's easy to remember but hard to guess. See paragraph 2.2.1. for more details.
+
+Also, like in Btrfs's case I will enable compression in order to spare some space on my small SSD. This _may_ potentially leak a bit of information about the data contained, but it's generally not a problem for most people. See next section for more info.
+
+### 2.2.2. Creating the system dataset
+
+Now that we have an encryption root, we can create all the datasets we need under it.
+
+It's good practice to create a hierchy that allows for the quick and easy creation of new boot environments.
+
+In general, under `encr` we are going to create:
+
+1. A `root` dataset, which will not be mounted, under which we will place datasets contain system images;
+2. A `home` dataset, which will act as the root for all user-data datasets.
+3. A `default` dataset under `root`, which will be mounted as `/` and contain the current system image.
+4. A `logs` dataset for `/var/log` under `default`, which is required to be a separate dataset in order to enable the ACLs required by `systemd-journald`.
+5. `users` and `root` datasets under `home`, which will respectively be mounted as `/home` and `/root`.
+
+```
+# zfs create -o mountpoint=none extzfs/encr/root
+# zfs create -o mountpoint=none extzfs/encr/home
+# zfs create -o mountpoint=/ extzfs/encr/root/default
+# zfs create -o mountpoint=/var/log -o acltype=posixacl extzfs/encr/root/logs
+# zfs create -o mountpoint=/home extzfs/encr/home/users
+# zfs create -o mountpoint=/root extzfs/encr/home/root
+```
+
+After this, the situation should look like this:
+
+```
+# zfs list
+NAME                        USED   AVAIL     REFER  MOUNTPOINT
+extzfs                     1.20M    225G       24K  none
+extzfs/encr                 721K    225G       98K  none
+extzfs/encr/home            294K    225G       98K  none
+extzfs/encr/home/root        98K    225G       98K  /tmp/mnt/root
+extzfs/encr/home/users       98K    225G       98K  /tmp/mnt/home
+extzfs/encr/root            329K    225G       98K  none
+extzfs/encr/root/default    231K    225G      133K  /tmp/mnt
+extzfs/encr/root/logs        98K    225G       98K  /tmp/mnt/var/log
+```
+
+Notice how all mountpoints are relative to `/tmp/mnt`, which is the alternate root the `extzfs` pool was imported with (in this case, created). The prefix will be stripped when importing the pool on the final system, leaving only the real mountpoints. This feature makes incredibly convenient mounting systems installed on ZFS for inspection, because the entire hierarchy is properly mounted under any directory you choose.
+
+### 2.2.3. Setting the bootfs
+
+The pool's `bootfs` property can be used to indicate which dataset contains the desired boot environment. This is not necessary, but it helps simplifying the kernel command line.
+
+Run the following command to set the `bootfs` property to `extzfs/encr/root/default`:
+
+```
+# zpool set bootfs=extzfs/encr/root/default extzfs
+```
+
+For the sake of consistency, export now the pool before moving to the next step. This is not strictly necessary, but it doesn't hurt to ensure that the pool can be correctly imported using the given passphrase.
+
+To export the pool and unmount all datasets, run:
+
+```
+# zpool export extzfs
+```
+
 # 3. Installing Arch Linux
 
 Installing Arch Linux is not the complex task it was a few decades ago. Arguably, it requires a bit of knowledge and experience, but it's not out of reach for most tech-savvy users.
@@ -409,11 +485,13 @@ and then, depending on the filesystem:
 
 I've also enabled compression for Btrfs, which may or may not be a good idea depending on your use case. Notice that compressing data before encrypting it _may_ hypothetically leak some info about the data contained. Avoid compression if you are concerned about this and/or you have a very large SSD.
 
-If using ZFS:
+If using ZFS, run:
 
 ```
-# zpool import -l -R /tmp/mnt ExtZFS
+# zpool import -l -d /dev/disk/by-id -R /tmp/mnt extzfs
 ```
+
+and it should do the trick.
 
 ## 3.2. Installing from scratch
 
@@ -426,14 +504,16 @@ In general, the steps somewhat resemble the following, regardless of what filesy
 # mount /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0-part1 /tmp/mnt/boot/efi
 ```
 
+### 3.2.1. Installing from an existing Arch Linux install
+
 If you are running from an existing Arch Linux install or the Arch ISO, installing a base system is as easy as running `pacstrap` on the mountpoint of the root filesystem:
 
 ```
-# pacstrap -K /tmp/mnt base linux-lts linux-firmware neovim
+# pacstrap -K /tmp/mnt base perl neovim
 [lots of output]
 ```
 
-Notice that I've chosen to install the LTS kernel, which is in general a good idea when depending on out-of-tree kernel modules such as ZFS or NVIDIA drivers. Feel free to install the latest kernel if you prefer, but remember to be careful when updating the system for module breakage. I've also thrown in `neovim` because there are no editors installed by default, but you can use whatever you prefer.
+I've also thrown in `neovim` because there are no editors installed by default in `base`, but feel free to use whatever you prefer. `perl` is also required by several packages, and not installing it may trigger unpredictable issues later.
 
 Now enter the new system with `arch-chroot`:
 
@@ -441,7 +521,7 @@ Now enter the new system with `arch-chroot`:
 # arch-chroot /tmp/mnt
 ```
 
-### 3.2.1. Installing from a non-Arch system
+### 3.2.2. Installing from a non-Arch system
 
 All the steps above, except for `pacstrap`, can be performed from basically any Linux distribution. If you are running from a non-Arch system, don't worry - there are workarounds available for that. 
 
@@ -450,7 +530,7 @@ An always viable solution is always [to use the bootstrap tarball from an Arch m
 For instance, to build `pacman` on Debian:
 
 ```
-$ sudo apt install build-essential meson cmake libcurl4-openssl-dev libgpgme-dev libssl-dev libarchive-dev
+$ sudo apt install build-essential meson cmake libcurl4-openssl-dev libgpgme-dev libssl-dev libarchive-dev pkgconf
 [...]
 $ wget -O - https://sources.archlinux.org/other/pacman/pacman-6.0.2.tar.xz | tar xvfJ -
 $ cd pacman-6.0.2
@@ -480,7 +560,7 @@ Create the required database directory for `pacman`, and install the same packag
 
 ```
 $ sudo mkdir -p /tmp/mnt/var/lib/pacman/
-$ sudo build/pacman -r /tmp/mnt --config=build/pacman.conf -Sy base linux-lts linux-firmware neovim
+$ sudo build/pacman -r /tmp/mnt --config=build/pacman.conf -Sy base perl neovim
 ```
 
 This will result in a working Arch Linux chroot, albeit only partially set up.
@@ -492,11 +572,38 @@ $ sudo mount --make-rslave --rbind /dev /tmp/mnt/dev
 $ sudo mount --make-rslave --rbind /sys /tmp/mnt/sys
 $ sudo mount --make-rslave --rbind /run /tmp/mnt/run
 $ sudo mount -t proc /proc /tmp/mnt/proc
+$ sudo cp -L /etc/resolv.conf /tmp/mnt/etc/resolv.conf
 $ sudo chroot /tmp/mnt /bin/bash
-# pacman-key --init
 [root@chroot /]# pacman-key --init
 [root@chroot /]# pacman-key --populate archlinux
 ```
+
+### 3.2.3. Installing a kernel
+
+In order to install packages inside your chroot, you need to enable at least one Pacman mirror first in `/etc/pacman.d/mirrorlist`. If you used `pacstrap` from an existing Arch Linux system, this may be unnecessary.
+
+After enabling one or more mirrors, you can install a kernel of your choice:
+
+```
+[root@chroot /]# pacman -Sy linux-lts linux-lts-headers linux-firmware
+```
+
+Notice that I've chosen to install the LTS kernel, which is in general a good idea when depending on out-of-tree kernel modules such as ZFS or NVIDIA drivers. Feel free to install the latest kernel if you prefer, but remember to be careful when updating the system for module breakage. 
+
+The command above will also generate the initrd, which we don't really need (we will use UKI instead), and that we will delete later.
+
+### 3.2.4. Installing the correct helpers for your filesystem
+
+In order for `fsck` to properly run, or to mount ZFS, you need to install the correct package for your filesystem:
+
+1.  If you've installed your system over ZFS, this is a good time to set-up the ArchZFS repository in the chroot, as described above;
+2. If you've installed your system over Btrfs, you need to install `btrfs-progs`. `cryptsetup` should already have been pulled in as a dependency to `systemd`.
+3. If you are using another filesystem, install the correct package. 
+    a. For `ext4`, `e2fsprogs` should already have been pulled in by dependencies installed by `base` - ensure you can run `e2fsck` from the chroot. 
+    b. For `XFS`, install `xfsprogs`.
+    c. For `F2FS`, install `f2fs-tools`.
+
+Remember to also always install `dosfstools`, which is required to `fsck` the FAT filesystem on the ESP.
 
 ## 3.3. Cloning an existing system
 
@@ -601,7 +708,7 @@ PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults   
 # /etc/fstab for Btrfs with LUKS
 /dev/mapper/ExtLUKS                             /            btrfs   defaults,subvol=@,compress=lzo       0 0
 /dev/mapper/ExtLUKS                             /home        btrfs   defaults,subvol=@home,compress=lzo   0 0
-PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults                                0 2
+PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults                             0 2
 ```
 
 In case of ZFS, all datasets mountpoints are managed via the filesystem itself. `/etc/fstab` will only contain the ESP (unless you have created legacy mountpoints):
@@ -622,7 +729,7 @@ passwd: password updated successfully
 And create a standard user. Remember to mount `/home` first if you are using a separate partition or subvolume!
 
 ```
-[root@chroot /]# mount /home # if using a separate partition or subvolume
+[root@chroot /]# mount /home # if using a separate partition or subvolume, not needed with ZFS
 [root@chroot /]# useradd -m marco # this is my name
 [root@chroot /]# passwd marco
 New password:
@@ -632,19 +739,17 @@ passwd: password updated successfully
 
 Before moving to the next step, ensure you have all packages required for connectivity, or you will be unable to install packages from the internet after you boot up the system.
 
-In order to install packages inside your chroot, you need to enable at least one Pacman mirror first in `/etc/pacman.d/mirrorlist`. If you used `pacstrap` from an existing Arch Linux system, this may be unnecessary. If you've installed your system over ZFS, this is a good time to set-up the ArchZFS repository in the chroot, as described above.
-
-With Pacman now working, install the networking packages you need. For simplicity, I'll just install `NetworkManager`:
+For simplicity, I'll just install `NetworkManager`:
 
 ```
-# pacman -S networkmanager
+[root@chroot /]# pacman -S networkmanager
 [...]
 ```
 
 As the last step before moving to the next point, remember to configure the correct console layout in `/etc/vconsole.conf`, or you will have a hard time typing your password at boot time:
 
 ```
-# cat > /etc/vconsole.conf <<'EOF'
+[root@chroot /]# cat > /etc/vconsole.conf <<'EOF'
 KEYMAP=us
 EOF
 ```
@@ -710,10 +815,9 @@ HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encryp
 Notice how the `keyboard` and `keymap` hooks have been specified before either the `zfs` or `encrypt` hooks.
 This ensures that the keyboard and keymap are correctly configured before reaching the root encryption password prompt.
 
-Before triggering the generation of our image, we must enable UKI support in the fallback preset (and disable the default one):
+Before triggering the generation of our image, we must enable UKI support in the fallback preset (and disable the default one). Edit `/etc/mkinitcpio.d/linux-lts.preset` as follows:
 
 ```
-# cat /etc/mkinitcpio.d/linux-lts.preset 
 # mkinitcpio preset file for the 'linux-lts' package
 
 #ALL_config="/etc/mkinitcpio.conf"
@@ -733,19 +837,50 @@ fallback_uki="/boot/efi/EFI/BOOT/Bootx64.efi"
 fallback_options="-S autodetect"
 ```
 
-Run `mkinitcpio -p linux-lts` to finally generate the UKI under `/boot/efi/EFI/BOOT/Bootx64.efi`. This is the location conventionally associated with the UEFI Fallback bootloader, which will make the external drive bootable on any UEFI system without the need of any configuration or bootloader, as long as booting from USB is allowed (and UEFI Secure Boot is off).
+In the preset above, I have completely commented the `default` preset out by removing it from `PRESETS` and commenting all of its entries. Under `fallback`, I only kept the `uki` and `options` entries, in order to avoid generating an initramfs image that we will never use.
+
+Run `mkinitcpio -p linux-lts` to finally generate the UKI under `/boot/efi/EFI/BOOT/Bootx64.efi`, which is the custom path I set `fallback_uki` to. This is the location conventionally associated with the UEFI Fallback bootloader, which will make the external drive bootable on any UEFI system without the need of any configuration or bootloader, as long as booting from USB is allowed (and UEFI Secure Boot is off).
 
 ```
-# mkdir -p /boot/efi/EFI/BOOT # create the target directory
-# mkinitcpio -p linux-lts
+[root@chroot /]# mkdir -p /boot/efi/EFI/BOOT # create the target directory
+[root@chroot /]# mkinitcpio -p linux-lts
 [...]
 ```
 
-3.4.2. Installing a bootloader (optional)
+Optionally, clean up by removing the unnecessary initramfs images automatically created by `pacman` when installing the kernel package previously. These are unnecessary when using UKIs, and will never be generated again with the modifications we made to the kernel preset:
+
+```
+# rm /boot/initramfs*.img
+```
+
+### 3.4.2. Installing a bootloader (optional)
 
 In principle, the instructions above make having a bootloader at all pretty redundant. You can also always tinker with command line arguments using the UEFI Shell, which can be either already installed on the machine you are booting on or copied in the ESP under `\EFI\Shellx64.efi`.
 
 In case you want to install a bootloader, change the `fallback_uki` argument to a different path (i.e. `/boot/efi/EFI/Linux/arch-linux-lts.efi`) and then just follow [Arch Wiki's instructions on how to set up `systemd-boot`](https://wiki.archlinux.org/title/Systemd-boot). Ensure that `bootctl install` copies the bootloader to `\EFI\BOOT\Bootx64.efi`, or it will not get picked up by the UEFI firmware automatically.
+
+## 3.5. Unmounting the filesystems
+
+Before attempting to boot the system, remember to unmount all filesystems and close the LUKS container. After ensuring you followed all steps correctly, exit the chroot, and then:
+
+```
+[root@chroot /]# exit
+$ sudo umount -l /tmp/mnt/{dev,sys,proc,run} # this prevents issues with busy mounts
+```
+
+If you used LUKS:
+
+```
+$ sudo umount -R /tmp/mnt
+```
+
+If you used ZFS, you also have to remember to export the pool - otherwise, the system won't boot:
+
+```
+$ sudo zpool export extzfs
+```
+
+This command may sometimes fail with an error message similar to `cannot export 'extzfs': pool is busy`. This is usually caused by a process still using the pool, such as a shell with its current directory set to a directory inside the pool. If this happens, the fastest way to fix it is to reboot the system, import the pool (without necessarily unlocking any dataset), and then immediately exporting it. This will ensure that the pool is not in use and untie it from the current system's hostid.
 
 # 4. Booting the system
 
@@ -806,6 +941,13 @@ If you did everything right in the last few steps, the boot process should stop 
 Insert the password and press enter. If everything went well, you should now be greeted by a login prompt.
 
 Login as root, and proceed with the last missing configuration steps:
+
+0. If you are running on ZFS, you'll notice that `/home` and `/root` are not mounted automatically. In order to fix this, immediately run 
+```
+# systemctl enable zfs.target zfs-mount.server zfs-import.target
+```
+
+After doing this, **reboot the system** and check that the datasets are mounted correctly. You shouldn't need to enable `zfs-import-cache.service` or `zfs-import-scan.service`, as they are not necessary given that we're booting from a single pool which is already imported.
 
 1. Enable and start up the network manager of your choice you've installed previously, such as `NetworkManager`:
    `# systemctl enable --now NetworkManager`
@@ -921,6 +1063,10 @@ Note that with NVIDIA the framebuffer resolution is often not increased automati
 2. Add `nvidia nvidia_modeset nvidia_uvm nvidia_drm` to the `MODULES` array in `/etc/mkinitcpio.conf`. This will ensure that the NVIDIA driver is always loaded early in the boot process. The module will be ignored and unloaded if not needed on the system currently in use.
 
 3. Do not use any legacy kernel option such as `video=` or `vga=`. There are lots of old guides still suggesting to use them, but they are not compatible with KMS and should not be used anymore.
+
+## 5.4. It's impossible to log in via a display manager, or logging from a tty complains that the user directory is missing
+
+This is an issue almost always caused by `/home` not being mounted correctly. Either check that `/home` is correctly configured in `/etc/fstab`, or that `zfs-mount` is enabled and running alongside the `zfs` target.
 
 # 6. Conclusion
 

@@ -613,9 +613,11 @@ Instead of installing the system from scratch, you may clone an existing system 
 2. give the system an unique configuration (i.e., change the hostname) in order to avoid clashes
 3. do not transfer the contents of the ESP - if you use UKI and mount it at `/boot/efi`, you will regenerate its contents later when you reapply the steps from above.
 
-There are 3 feasible ways to do this:
+There are 3 feasible ways to do this.
 
-1. Use `dd` to clone a partition block by block. This methods has a few advantages, and quite a bit of downsides:
+### 3.3.1. Use `dd` to clone a partition block by block.
+
+This methods has a few advantages, and quite a bit of downsides:
     + **PRO**: because it literally clones an entire disk, byte per byte, to another, it is the most conservative method among all.
     - **CON**: because it clones an entire disk byte per byte, issues such as fragmentation and data in unallocated sectors are copied.
     - **CON**: because it clones an entire disk byte per byte, the target partition or disk must be at least as large as the source, or the source must be shrunk beforehand, which is not always possible.
@@ -624,62 +626,84 @@ There are 3 feasible ways to do this:
 
     `# dd if=/path/to/source/partition of=/dev/mapper/ExtLUKS bs=1M status=progress`
 
-2. Use `rsync` to clone a filesystem onto a new partition. This method is the most flexible,because it's completely agnostic regarding the source and destination filesystems, as long as the destination can fit all contents from the source. Just mount everything where it's supposed to go, and run (as root):
+### 3.3.2. Use `rsync` to clone a filesystem onto a new partition.
+
+This method is the most flexible,because it's completely agnostic regarding the source and destination filesystems, as long as the destination can fit all contents from the source. Just mount everything where it's supposed to go, and run (as root):
     
-    `# rsync -qaHAXS /{bin,boot,etc,home,lib,opt,root,sbin,srv,usr,var} /path/to/dest`
+```
+# rsync -qaHAXS /{bin,boot,etc,home,lib,opt,root,sbin,srv,usr,var} /path/to/dest
+```
 
-    The root has now been cloned, but it's missing some base directories.
+The root has now been cloned, but it's missing some base directories.
 
-    Given I assume we are booting from an Arch Linux system, just reinstall `filesystem` inside the new root:
-    ```
-    $  sudo pacman -r /tmp/shoot --config /tmp/shoot/etc/pacman.conf -S filesystem
-    ```
-    This will fixup any missing directory and symlink, such as `/dev`, `/proc`, ... Notice that only for this time I have used the `-r` parameter. This changes pacman's root directory, and should always used with extreme care.
+Given that I assume we are booting from an Arch Linux system, just reinstall `filesystem` inside the new root:
+```
+$  sudo pacman -r /tmp/shoot --config /tmp/shoot/etc/pacman.conf -S filesystem
+```
+This will fixup any missing directory and symlink, such as `/dev`, `/proc`, ... Notice that only for this time I have used the `-r` parameter. This changes pacman's root directory, and should always used with extreme care.
 
-3. Use Btrfs or ZFS snapshotting and replication facilities to migrate existing subvolumes/datasets.
+### 3.3.3. Use Btrfs or ZFS snapshotting and replication facilities to migrate existing subvolumes/datasets.
 
-    Both Btrfs and ZFS support incremental snapshotting and sending/receiving them as incremental data streams. This is extremely convenient, because replication ensures that files are transferred perfectly (with the right permissions, metadata, ...) without having to copy any unnecessary empty space.
+Both Btrfs and ZFS support incremental snapshotting and sending/receiving them as incremental data streams. This is extremely convenient, because replication ensures that files are transferred perfectly (with the right permissions, metadata, ...) without having to copy any unnecessary empty space.
 
-    I) In order to duplicate a system using Btrfs, partition and format the disk as described above, and then snapshot and send the subvolumes to the new disk:
+1. In order to duplicate a system using Btrfs, partition and format the disk as described above, and then snapshot and send the subvolumes to the new disk:
 
-    ```
-    # mount -o subvol=/ /path/to/root/dev /tmp/src
-    # mount -o subvol=/ /dev/mapper/ExtLUKS /tmp/mnt
-    # btrfs su snapshot -r /tmp/src/@{,-mig}
-    Create a readonly snapshot of '/tmp/src/@' in '/tmp/src/@-mig'
-    # btrfs su snapshot -r /tmp/src/@home{,-mig}
-    Create a readonly snapshot of '/tmp/src/@home' in '/tmp/src/@home-mig'
-    # btrfs send /tmp/src/@-mig | btrfs receive /tmp/mnt
-    At subvol /tmp/src/@-mig
-    At subvol @-mig
-    # btrfs send /tmp/src/@home-mig | btrfs receive /tmp/mnt
-    At subvol /tmp/src/@home-mig
-    At subvol @home-mig
-    ```
+```
+# mount -o subvol=/ /path/to/root/dev /tmp/src
+# mount -o subvol=/ /dev/mapper/ExtLUKS /tmp/mnt
+# btrfs su snapshot -r /tmp/src/@{,-mig}
+Create a readonly snapshot of '/tmp/src/@' in '/tmp/src/@-mig'
+# btrfs su snapshot -r /tmp/src/@home{,-mig}
+Create a readonly snapshot of '/tmp/src/@home' in '/tmp/src/@home-mig'
+# btrfs send /tmp/src/@-mig | btrfs receive /tmp/mnt
+At subvol /tmp/src/@-mig
+At subvol @-mig
+# btrfs send /tmp/src/@home-mig | btrfs receive /tmp/mnt
+At subvol /tmp/src/@home-mig
+At subvol @home-mig
+```
 
-    The system is now been correctly transferred. If you are running the commands through a network (like via SSH), you may want to either compress and decompress the stream or use `pv` to monitor the transfer speed.
+The system is now been correctly transferred. If you are running the commands through a network (like via SSH), you may want to either compress and decompress the stream or use `pv` to monitor the transfer speed.
 
-    Rename the subvolumes to their original names and delete the now unnecessary snapshots [^14]:
+Rename the subvolumes to their original names and delete the now unnecessary snapshots [^14]:
 
-    ```
-    # perl-rename -v 's/\-mig//g' /tmp/mnt/@* 
-    /tmp/mnt/@-mig -> /tmp/mnt/@
-    /tmp/mnt/@home-mig -> /tmp/mnt/@home
-    # btrfs su delete /tmp/src/@*-mig
-    Delete subvolume (no-commit): '/tmp/src/@-mig'
-    Delete subvolume (no-commit): '/tmp/src/@home-mig'
-    # umount /tmp/{src,mnt}
-    # mount -o subvol=@,compress=lzo /dev/mapper/ExtLUKS /tmp/mnt
-    ```
+```
+# perl-rename -v 's/\-mig//g' /tmp/mnt/@* 
+/tmp/mnt/@-mig -> /tmp/mnt/@
+/tmp/mnt/@home-mig -> /tmp/mnt/@home
+# btrfs su delete /tmp/src/@*-mig
+Delete subvolume (no-commit): '/tmp/src/@-mig'
+Delete subvolume (no-commit): '/tmp/src/@home-mig'
+# umount /tmp/{src,mnt}
+# mount -o subvol=@,compress=lzo /dev/mapper/ExtLUKS /tmp/mnt
+```
 
-    Unmount the root and mount the root subvolume. You are now ready to move to the next step.
+Unmount the root and mount the root subvolume. You are now ready to move to the next step.
 
-    II) With ZFS, the process is very similar to Btrfs, with a few different steps.
-    
-    Like above, snapshot your root disk:
+2. With ZFS, the process is very similar to Btrfs, with a few different steps depending if your source datasets are already encrypted or not.
 
-    // FILL LATER
+Like above, after creating a pool, snapshot your root disk _recursively_. If your system resides on an encrypted dataset, snapshotting the encryption root will also snapshot all the datasets contained within it:
 
+```
+# zfs snapshot -r zroot/encr@migration # or else, snapshot all the single datasets
+```
+
+after doing that, you can either:
+- create a new encrypted dataset and send the unencrypted snashots to it:
+  ```
+  # zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt -o mountpoint=none -o compression=lz4 extzfs/encr
+  # zfs send zroot/root@migration | zfs recv extzfs/encr/root
+  # ...
+  ```
+
+  repeating the process for every dataset you want to transfer, or
+
+- clone the encrypted datasets outright without unlocking them:
+  ```
+  # zfs send -R --raw zroot/encr@migration | zfs recv -F extzfs/encr
+  ```
+  
+  which will result in a new encrypted dataset called `extzfs/encr/encr` containing the encrypted snapshots. The new dataset will have the same encryption key as the source dataset, so you will be able to unlock it with the same passphrase.
 
 ## 3.4. Configuring the base system
 

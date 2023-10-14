@@ -692,18 +692,31 @@ after doing that, you can either:
 - create a new encrypted dataset and send the unencrypted snashots to it:
   ```
   # zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt -o mountpoint=none -o compression=lz4 extzfs/encr
-  # zfs send zroot/root@migration | zfs recv extzfs/encr/root
+  # for DATASET in root home ... # note: replace with the actual datasets
+  do zfs send zroot/$DATASET@migration | zfs recv extzfs/encr/$DATASET
   # ...
   ```
 
-  repeating the process for every dataset you want to transfer, or
+  Migrating unencrypted datasets to an encrypted root dataset requires transferring the snapshots one by one. It's generally easier to just let the newly received snapshots inherit properties from their parents, and then fixing mountpoints and other properties later using `zfs set`. You can also do it directly if necessary by setting the properties using the `-o` flag with `zfs recv`.
 
-- clone the encrypted datasets outright without unlocking them:
+  Ensure that all datasets are correctly mounted before moving to the next step.
+
+- clone another encrypted dataset as raw data:
   ```
-  # zfs send -R --raw zroot/encr@migration | zfs recv -F extzfs/encr
+  # zfs send -Rw zroot/encr@migration | zfs recv -F extzfs/encr
   ```
   
-  which will result in a new encrypted dataset called `extzfs/encr/encr` containing the encrypted snapshots. The new dataset will have the same encryption key as the source dataset, so you will be able to unlock it with the same passphrase.
+  This will recursively recreate all the datasets as they were in the source, under a new encrypted dataset called `extzfs/encr/encr`. The new encryption root will have the same key as the source dataset, so you will be able to unlock it with the same passphrase. All properties and mountpoints will also be kept as they were on the source. 
+
+  Ensure that all new datasets are correctly mounted under the altroot defined above.
+
+  Given that all properties have been preserved, it may be enough to run 
+
+  ```
+  # zfs mount -la
+  ```
+
+  to unlock and mount all new datasets.
 
 ## 3.4. Configuring the base system
 

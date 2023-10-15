@@ -5,23 +5,23 @@ title: Bring your Arch Linux install everywhere
 
 The first time I installed Arch Linux was in 2007. In that foregone time, the only supported architecture was 32-bit x86, and the ISOs carried dubious release names such as _"0.8 Voodoo"_.
 
-Despite the fact Arch shipped an installer that looked _suspiciously alike_ FreeBSD's, you still had to configure a big deal of stuff by hand, using a slew of files with BSD-sounding names (`rc.conf`, anyone?). Xorg was the biggest PITA[^1], but tools such as `xorgconfigure` helped users achieve the dream of a working X11 session with Beryl burning windows. Spinning desktop cubes, was the real deal back then, and nothing gave you more street cred than having windows that wobbled like cubes of jelly.
+Despite the fact Arch shipped an installer that looked _suspiciously alike_ FreeBSD's, you still had to configure a big deal of stuff by hand, using a slew of files with BSD-sounding names (`rc.conf`, anyone?). Xorg was the biggest PITA[^1], but tools such as `xorgconfigure` and shoddy patched Xorg servers helped users achieve the *"Linux dream"*, which at the time mostly consisted of wobbly Beryl windows and spinny desktop cubes. That was the real deal back then, and nothing gave you more street cred than having windows that wobbled like cubes of jelly.
 
-Those days are (somewhat sadly) long gone. Today's GNU/Linux distros are rather simple to install and setup, with often little to no configuration required. Advanced user distros such as Arch still require you to configure everything to your liking yourself, but the overall stack (kernel, udev, Xorg, Wayland, ...) is now exceptionally good at automatically configuring the hardware. UEFI also smoothens a lot of warts about the booting process.
+Those days are (somewhat sadly) long gone. Today's GNU/Linux distros are rather simple to install and setup, with often little to no configuration required (unless you are unlucky, of course). Distros targeted to advanced users, such as Arch, still require you to configure everything to your liking by yourself, but the overall stack (kernel, udev, Xorg, Wayland, ...) is now exceptionally good at automatically configuring itself based on the current hardware. UEFI also smoothens a lot of warts about the booting process.
 
-This, alongside ultra-fast USB drive bays, makes self-configuring portable installs a concrete reality. I have now been using Arch Linux installs from SSDs in USB caddies for years now, for both work, system recovery and easy access to a ready-to-use environment from any computer. 
+This, alongside ultra-fast USB drive bays, makes self-configuring portable installs a concrete reality. I have now been using Arch Linux installs from SSDs in USB caddies for years now, for both work, system recovery and easy access to a ready-to-use environment from any computer. Despite the tradeoffs, it's remarkably solid and convenient.
 
-In this post, I'll show step-by-step (with examples) how to install Arch Linux on a USB drive, and how to make it bootable everywhere [^2], including virtual machines.
+In this post, I'll show step-by-step (with examples) how to install Arch Linux on a USB drive, and how to make it bootable everywhere [^2], including virtual machines. I will try to cover as much corner cases as possible, but as always feel free to comment or contact me if you think something may be missing.
 
 # Prerequisites
 
-- **An SSD drive in a USB enclosure**. In my experience, pre-made USB disks are designed for storage and tend to perform worse. Being also able to replace enclosures improves durability [^3], and allows you to pop the SSD in a computer if you _really_ need to. 
+- **An SSD drive in a USB enclosure**. In my experience, _"pre-made"_ external USB disks are designed for storage and tend to perform way worse than internal drives in an external caddy. Enclosures also have the extra advantage improves durability [^3], and allows you to pop the SSD in a computer if you _really_ need to. 
 
     The SSD can be either SATA or NVMe, with the latter being the *obviously* better choice. In general I tend to often run out of space on my machines, so I tend to use whatever SSD I have lying around. I honestly wouldn't bother with anything smaller than 128GB, unless you really plan to only use it for system recovery or light browsing.
 
-    NEVER use mechanical drives: not only spinning rust is *atrociously slow*, because most if not all 2.5" drives only spin at 5400 RPM, but they are also outrageously fragile. The whole point for me of having a portable install is to be able to carry it around - shove it in a bag, in a pocket, etc. 
+    NEVER use mechanical drives anymore or, at least, avoid them for anything that isn't cold storage or NAS. This is even more true for this project: not only spinning rust is *atrociously slow*, because most if not all 2.5" drives only spin at 5400 RPM, but they are also outrageously fragile and they almost always take more power that it's supplied by the average USB port.
 
-- **An x86-64 computer**. It doesn't have to run Arch Linux, but it makes the whole process easier (especially if you wish to clone the system to the USB drive - see below). A viable option is also to boot from the Arch Linux ISO and install the system from there, as long as you have another machine with a working internet connection to Google any issues you might encounter. 
+- **An x86-64 computer**. It doesn't have to run Arch Linux, but it makes the whole process easier (especially if you wish to clone your current system to the USB drive - see below). A viable option is also to boot from the Arch Linux ISO and install the system from there, as long as you have another machine with a working internet connection to Google any issues you might encounter. 
 
     Note: I will only cover x86-64 with UEFI because that's by far the easiest and more reliable setup. BIOS requires tinkering with more complex bootloaders (such as SYSLINUX), while 32-bit x86 is not supported by Arch Linux anymore. [^4]
 
@@ -33,27 +33,27 @@ Given that we are talking about a portable install, disk encryption is nothing s
 
 The choices of filesystem and encryption scheme are up to you, but there are basically three options I've used and I can recommend:
 
-1. **`LUKS` with a classic filesystem**, such as `ext4`, `F2FS` or `XFS`. This is the simplest option, and it works well for most people.
+1. **`LUKS` with a classic filesystem**, such as `ext4`, `F2FS` or `XFS`. This is the simplest option, and it is probably more than enough for most people.
 
-2. **`ZFS` with native encryption**. I must admit, this *may* be somewhat overkill, but it's also my favourite because due to it being such a great experience overall. While ZFS isn't probably the best choice for a removable hard drive, it's outstandingly solid, supports compression, snapshots and checksumming, are all things I do want from a system that runs from what's potentially a flimsy USB cable. [^6] I am yet to lose any data due to ZFS itself, and I have been using it for the best part of a decade now.
+2. **`ZFS` with native encryption**. I must admit, this *may* be somewhat overkill, but it's also my favourite because due to it being such a great experience overall. While ZFS isn't probably the best choice for a removable hard drive, it's outstandingly solid, supports compression, snapshots and checksumming - all things I do want from a system that runs from what's potentially a flimsy USB cable. [^6] I am yet to lose any data due to ZFS itself, and I have been using it for the best part of a decade now.
 
-    ZFS is also what I use on all my computers, so I can easily migrate datasets from/to a USB-installed system using the `zfs send`/`zfs receive` commands if I need to, or quickly back up the whole system.
+    ZFS is also what I use on all my installs, so I can easily migrate datasets from/to a USB-installed system using the `zfs send`/`zfs receive` commands if I need to, or quickly back up the whole system.
 
-    Native ZFS encryption, while not as thoroughly tested and secure as `LUKS`, is still probably fine for most people, while also ridiculously convenient to set up. If that's not enough, using `ZFS` on top of `LUKS` is still an acceptable choice.
+    Native ZFS encryption, while not as thoroughly tested and secure as `LUKS`, is still probably fine for most people, while also ridiculously convenient to set up. If that's not enough for you, using `ZFS` on top of `LUKS` is still an acceptable choice (albeit more complicated to pull off).
 
-3. **`LUKS` with `BTRFS`**. I have also used this setup in the past, and there's a lot to like about it, such as the fact that BTRFS supports most of ZFS's best features without requiring to install any extra modules - a very nice plus indeed.
+3. **`LUKS` with `BTRFS`**. I have also used this setup in the past, and there's a lot to like about it, such as the fact that BTRFS supports lots of ZFS's best features without requiring to install any out-of-tree kernel modules - a very nice plus indeed.
 
-    Sadly, I have been burnt by BTRFS so many times in the past 12 years that I can't say I would want to entrust it with my data any time soon. YMMV, so maybe give it a try if you're curious.
+    Sadly, I have been burnt by BTRFS so many times in the past 12 years that I can't honestly say I would want to entrust it with my data any time soon. YMMV, so maybe give it a try if you're curious.
 
-I will cover all three options in the next sections. 
+Regardless of that, I will now cover all three options in the next sections. 
 
-One important note: I deliberately decided to leave kernel images unencrypted (in UKI form) in the ESP, sticking with full encryption for just the root filesystem. My main concern is about protecting the data stored on the drive in case it's lost or broken, and I assume nobody will attempt evil maid attacks. [^7] Encrypting the kernel is pointless without a signed bootloader and kernel - something you are not guarranteed to have when booting from a USB drive. 
+**One important note**: I _deliberately_ decided to leave kernel images unencrypted (in UKI form) in the ESP, sticking with full encryption for just the root filesystem. My main concern is about protecting the data stored on the drive in case it's lost or broken, and I assume nobody will attempt evil maid attacks. [^7] Encrypting the kernel is also probably rather pointless without a signed bootloader and kernel - something that's very hard to setup for a portable USB setup. 
 
-I also will not show how to set-up UEFI Secure Boot. While having Secure Boot enabled is a good thing in general, it makes setting the system up vastly more complex, for debatable benefits. This setup is in general not meant to be used for security critical systems, but to provide a convenient way to carry a working environment around between machines you completely control. 
+I also will not show how to set-up UEFI Secure Boot. While having Secure Boot enabled is a good thing in general, it makes setting the system up vastly more complex, for debatable benefits. This setup is in general not meant to be used for security critical systems, but to provide a convenient way to carry a working environment around between machines you have complete control of. 
 
 # 0. (Optional) Obtaining a viable ZFS setup environment
 
-Unfortunately, ZFS on Linux is an out-of-tree filesystem. This basically means that it's not bundled with the kernel as usual, but instead distributed by an independent project and has to be compiled and installed separately. This is due to a complex licensing incompatibility between the CDDL license used by OpenZFS, and the GPL license used by the Linux kernel, which makes it impossible to ever bundle ZFS and Linux together.
+Unfortunately, ZFS on Linux is an out-of-tree filesystem. This basically means that it's not bundled with the kernel as with all other filesystem, but instead it's distributed by an independent project and has to be compiled and installed separately. This is due to a complex licensing incompatibility between the **CDDL** license used by OpenZFS, and the **GPLv2** license used by the Linux kernel, which makes it impossible to ever bundle ZFS and Linux together.
 
 If you intend on using ZFS, you must follow these steps first; if not, just skip to the section 1.
 
@@ -63,9 +63,9 @@ This procedure varies depending on the distribution you are using:
 
 Arch doesn't distribute ZFS due to the aforementioned licensing issues, but it's readily available and readily maintained by the [ArchZFS project](https://github.com/archzfs/archzfs), both in form of AUR `PKGBUILD`s and in the third party repository `archzfs`.
 
-The packages you are going to need are `zfs-utils` and a kernel module, which can either be a kernel-specific package (i.e. `zfs-linux-lts`), or a DKMS one (i.e. `zfs-dkms`).
+The packages you are going to need are `zfs-utils` and a module compatible with your current kernel; the latter can either come from a kernel-specific package (i.e. `zfs-linux-lts`), or a DKMS one (i.e. `zfs-dkms`).
 
-If you opt to install the packages from ArchZFS, add the `[archzfs]` repository to your `pacman.conf` (look at [Arch Wiki](https://wiki.archlinux.org/title/Unofficial_user_repositories#archzfs) for the correct URL), rembering to import the PGP key.
+If you opt to install the packages from ArchZFS, add the `[archzfs]` repository to your `pacman.conf` (look at [Arch Wiki](https://wiki.archlinux.org/title/Unofficial_user_repositories#archzfs) for the correct URL), rembering to import the PGP key using `pacman-key -r KEY` followed by `pacman-key --lsign-key KEY`.
 
 If you need to boot from an ISO, it's a bit more complicated, so I won't specify the details here because it would be quite long. Give a look at [this repo](https://github.com/eoli3n/archiso-zfs) for a quick way to generate one. If you feel adventurous, you can also try to use an ISO with ZFS support from another distribution (such as Ubuntu) and follow the instructions below to set up a working environment.
 
@@ -73,7 +73,7 @@ If you need to boot from an ISO, it's a bit more complicated, so I won't specify
 
 If you are starting from another distribution, you will need to visit the [OpenZFS on Linux](https://openzfs.github.io/openzfs-docs/Getting%20Started/index.html) website and follow the instructions for your distribution (if included).
 
-This will generally involve adding a third party repository (except for Ubuntu, which has ZFS in the main repos), and following the instructions.
+This will generally involve adding a third party repository (except for Ubuntu, which has ZFS in its main repos), and following the instructions.
 
 For instance, on Debian it's recommended to enable the _backports_ repository, in order to install a more up to date version. This also requires to modify APT's settings by pinning the backports repository to a higher priority for the ZFS packages.
 

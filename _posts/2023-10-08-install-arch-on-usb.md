@@ -75,7 +75,7 @@ If you are starting from another distribution, you will need to visit the [OpenZ
 
 This will generally involve adding a third party repository (except for Ubuntu, which has ZFS in its main repos), and following the instructions.
 
-For instance, on Debian it's recommended to enable the _backports_ repository, in order to install a more up to date version. This also requires to modify APT's settings by pinning the backports repository to a higher priority for the ZFS packages.
+For instance, on Debian it's recommended to enable the `backports` repository, in order to install a more up to date version. This also requires to modify APT's settings by pinning the `backports` repository to a higher priority for the ZFS packages.
 
 ```
 # cat <<'EOF' > /etc/apt/sources.list.d/bookworm-backports.list
@@ -92,7 +92,7 @@ Pin-Priority: 990
 [...]
 ```
 
-Regardless of what you are using, you should now have a working ZFS setup. You can verify this by running `zpool status`; if it prints `no pools available` instead of complaining about missing kernel modules, you are good to start setting up the drive.
+Regardless of what you are using, you should now have a working ZFS setup. You can verify this by running `zpool status`; if it prints `no pools available` instead of complaining about missing kernel modules, you are good to go, and you may start setting up the drive.
 
 # 1. Partitioning
 
@@ -100,16 +100,17 @@ From either the Arch Linux ISO or your existing system, run a disk partitioning 
 
 The partitioning scheme is generally up to you, with the bare minimum being:
 
-- A FAT32 **EFI System Partition** (ESP), possibly with a comfortable size of at least 300 MiB. This is where the bootloader and the kernel will be stored. I do not recommend going for BIOS/MBR, given that x64 computers have supported UEFI for more than a decade now.
+- A FAT32 **EFI System Partition** (ESP), possibly with a comfortable size of at least 300 MiB. This is where the UKI (and optionally, a bootloader) will be stored. I do not recommend going for BIOS/MBR, given that x64 computers have supported UEFI for more than a decade now.
 
     The ESP will be mounted at `/boot/efi` in the final system.
+
 - A **root partition**. This is where the system will be installed and all files will be stored. The size is up to you, but I would recommend at least 20 GiB for a _very_ minimal system. While the system itself doesn't necessarily need a lot of space, with limited storage space you will find yourself often cleaning up the package caches, logs and temporary files that litter `/var`.
 
     The root partition will also be our encryption root, and it will be formatted with either `LUKS` or `ZFS`. 
 
-- An optional **swap partition**. I generally don't recommend a swap partition when booting from USB, because it will quickly turn into a massive bottleneck and slow down the whole system to a crawl. If you really need swap, I would recommend looking into alternatives such as `zram` or `zswap`, which are probably a wiser choice. 
+While some guides may suggest also creating a swap partition, I generally don't recommend using one when booting from USB,. Swapping to storage will quickly turn into a massive bottleneck and slow down the whole system to a crawl. If you really need swap, I would recommend looking into alternatives such as `zram` or `zswap`, which are probably a wiser choice. 
 
-    Also, it goes without saying, do not hibernate a system that runs from a USB drive, unless you plan on resuming it on the same machine.
+Also, it goes without saying, do not hibernate a system that runs from a USB drive, unless you plan on resuming it on the same machine.
 
 ## 1.1 Creating the partition label
 
@@ -124,7 +125,7 @@ lrwxrwxrwx 1 root root 10 Aug 10 18:42 /dev/disk/by-id/usb-Samsung_SSD_960_EVO_2
 lrwxrwxrwx 1 root root 10 Aug 10 18:42 /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0-part2 -> ../../sdb2
 ```
 
-I can't stress this enough, _DO NOT USE RAW DEVICE NAMES WHEN PARTITIONING!_. Always use `/dev/disk` when performing destructive operations of block devices - it's not a matter of _if_ you will lose data, but _when_. [^10] `/dev/disk/by-id` is by far the best good choice due to it clearly naming devices by bus type, which makes very hard to mix up devices by mistake.
+I can't stress this enough: **_DO NOT USE RAW DEVICE NAMES WHEN PARTITIONING!_**. Always use `/dev/disk` when performing destructive operations of block devices - it's not a matter of _if_ you will lose data, but _when_. [^10] `/dev/disk/by-id` is by far the best good choice due to how it clearly names devices by bus type, which makes very hard to mix up devices by mistake.
 
 Once you have identified the device name, run `gdisk` (or whatever you prefer) and create a new GPT label in order to wipe the existing partition table. 
 
@@ -161,7 +162,7 @@ Command (? for help):
 
 ## 1.2. Creating the EFI System Partition (ESP)
 
-With now a clear slate, we can create an EFI partition (GUID type `EF00`). The ESP not be encrypted and will contain both the kernel and our bootloader; for this reason, I recommend giving it at least 300 MiB of space in order to avoid unpleasant surprises when updating the kernel.
+With now a clear slate, we can create an EFI partition (GUID type `EF00`). The ESP not be encrypted and will contain the Unified Kernel Image the system will boot from; for this reason, I recommend giving it at least 300 MiB of space in order to avoid unpleasant surprises when updating the kernel.
 
 ```gdisk
 Command (? for help): n               
@@ -187,9 +188,9 @@ Command (? for help):
 
 ## 1.3. Creating the root partition
 
-Finally, we can create the root partition. This partition will be encrypted, and will contain the system and all of user data. I recommend giving it at least 20 GiB of space, but feel free to use more if you have the space.
+Finally, we can create the root partition. This partition will be encrypted, and will contain the system and all of user data. I recommend giving it at least 20 GiB of space, but feel free to use more if you have some spare room.
 
-For instance, the following command will demostrate how to use all of the remaining space on the drive:
+For instance, the following command will create a partition using all of the remaining space on the drive:
 
 ```gdisk
 Command (? for help): n
@@ -242,9 +243,9 @@ The operation has completed successfully.
 
 # 2. Creating the filesystems
 
-Now that we created a partition table, we can create the filesystems.
+Now that we created a viable partition layout, we can proceed by creating filesystems on it.
 
-As I've mentioned before, there are several possible choices regarding what filesystems and encryption schemes to use. Regardless of your choice, the ESP must always be formatted as FAT, either FAT32 or FAT16:
+As I've mentioned before, there are several potential choices regarding what filesystems and encryption schemes to use. Regardless of what you'll end up choosing, the ESP must always be formatted as FAT (either FAT32 or FAT16):
 
 ```
 # mkfs.fat -F 32 -n EXTESP /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0-part1
@@ -257,7 +258,7 @@ After doing this, proceed depending on what filesystem you want to use.
 
 LUKS with a simple filesystem is by far the simplest solution, and (probably) the "safest" for what regards setup complexity. LUKS can also be used with LVM2 for more "advanced" solutions, but it goes beyond the scope of this post.
 
-As I've mentioned previously, we are going to set up full encryption for system and user data, but not for the kernel, which will reside in UKI form inside the ESP. If you are interested in the more "paranoid" setup, you can find more information in the [Arch Wiki](https://wiki.archlinux.org/title/Dm-crypt/Encrypting_an_entire_system#Encrypted_boot_partition_(GRUB)).
+As I've mentioned previously, we are going to set up full encryption for system and user data, but not for the kernel, which will reside in UKI form inside the ESP. If you are interested in a more "paranoid" setup, you can find more information in the [Arch Wiki](https://wiki.archlinux.org/title/Dm-crypt/Encrypting_an_entire_system#Encrypted_boot_partition_(GRUB)).
 
 ### 2.1.1. Creating the LUKS container
 
@@ -284,7 +285,7 @@ After creating the container, we need to open it in order to format it with a fi
 Enter passphrase for /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0-part2:
 ```
 
-`ExtLUKS` is an arbitrary name I chose for the container - feel free to pick a name you like. Whatever your choice is, after successfully unlocking the LUKS container it will be available as a block device under `/dev/mapper/<name>`:
+`ExtLUKS` is an arbitrary name I chose for the container - feel free to pick whatever name you like. Whatever your choice is, after successfully unlocking the LUKS container it will be available as a block device under `/dev/mapper/<name>`:
 
 ```
 $ ls -l1 /dev/mapper/ExtLUKS

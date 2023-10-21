@@ -296,7 +296,7 @@ lrwxrwxrwx 1 root root 7 Aug 28 22:45 /dev/mapper/ExtLUKS -> ../dm-0
 
 Now that we have an unlocked LUKS container, we can format it with a "real" filesystem. Note that, if you wish to use LVM2, this would be the right time to create the LVM volumes.
 
-No matter the filesystem you plan to use over LUKS, `ext4`, `F2FS`, `XFS` and `Btrfs` are all created via the respective `mkfs` tool:
+No matter the filesystem you plan to use over LUKS, _ext4_, _F2FS_, _XFS_ and _Btrfs_ are all created via the respective `mkfs` tool:
 
 ```
 # mke2fs -t ext4 -L ExtRoot /dev/mapper/ExtLUKS # for Ext4
@@ -305,15 +305,17 @@ No matter the filesystem you plan to use over LUKS, `ext4`, `F2FS`, `XFS` and `B
 # mkfs.btrfs -L ExtRoot /dev/mapper/ExtLUKS # for Btrfs
 ```
 
-# 2.1.3. Btrfs subvolumes
+## 2.2. Advanced: Btrfs subvolumes
 
 If you picked a "plain" filesystem such as `ext4`, `F2FS` or `XFS`, you can skip this section. 
 
-In case you picked `Btrfs`, it's a good idea to create subvolumes for `/` and `/home` in order to take advantage of Btrfs's snapshotting capabilities. 
+In case you picked _Btrfs_, it's a good idea to create subvolumes for `/` and `/home` in order to take advantage of Btrfs's snapshotting capabilities. 
 
 Compared to older filesystems, Btrfs and ZFS have the built-in capability to create logical subvolumes (_datasets_ in ZFS parlance) that can be mounted, snapshotted and managed independently. This is somewhat similar to LVM2, but immensely more powerful and flexible; all subvolumes share the same storage pool and can have different properties enabled (such as compression or CoW), or ad-hoc quotas and mount options.
 
-Compared to other filesystems, `Btrfs` requires filesystems to be online and mounted in order to perform operation on them, such as scrubbing (an operation akin to `fsck`) and subvolume management. 
+Compared to other filesystems, Btrfs (and ZFS) requires filesystems to be online and mounted in order to perform operation on them, such as scrubbing (an operation akin to `fsck`) and subvolume management. 
+
+### 2.2.1. Mounting the root subvolume
 
 Mount the filesystem on a temporary mountpoint:
 
@@ -325,7 +327,9 @@ Mount the filesystem on a temporary mountpoint:
 
 Notice how `mtab` includes the options `subvolid=5,subvol=/`. This means that the _default subvolume_ has been mounted, identified with the ID `5` and named `/`. This is the subvolume that will be mounted by default, acting as the root parent of all other subvolumes.
 
-Now, we can create the subvolumes for `/` and `/home` called `@` and `@home` respectively (using a `@` prefix with Btrfs subvolumes) is long established convention:
+### 2.2.2. Creating the subvolumes
+
+Now we can create the subvolumes for `/` and `/home`, called `@` and `@home` respectively:
 
 ```
 # btrfs subvolume create /path/to/temp/mount/@     # for /
@@ -334,7 +338,7 @@ Created subvolume '/path/to/temp/mount/@'
 Created subvolume '/path/to/temp/mount/@home'
 ```
 
-The situation should now look like this:
+Using a `@` prefix with Btrfs subvolumes is long established convention. The situation should now look like this:
 
 ```
 # btrfs subvolume list -p /path/to/temp/mount
@@ -345,11 +349,11 @@ ID 257 gen 9 parent 5 top level 5 path @home
 @home
 ```
 
-Notice how in `Btrfs` subvolumes _are also subdirectories_ of their parent subvolume. This is very useful when mounting the disk as an external drive. Subvolumes can also be mounted directly by passing the `subvol` and `subvolid` to `mount`.
+Notice how in _Btrfs_ subvolumes _are also subdirectories_ of their parent subvolume. This is very useful when mounting the disk as an external drive. Subvolumes can also be mounted directly by passing the `subvol` and `subvolid` to `mount`.
 
 Before moving to the next step, remember to unmount the root subvolume.
 
-## 2.2 Advanced: ZFS with native encryption
+## 2.3. Advanced: ZFS with native encryption
 
 My personal favourite, ZFS is a rocksolid system that's ubiquitous in data storage, thanks to its impressive stability record and advanced features such as deduplication, built-in RAID, ... 
 
@@ -359,9 +363,9 @@ ZFS is quite different compared to other filesystems. Instead of filesystems, ZF
 
 Datasets can be mounted independently, and can each have their own properties, such as compression, quotas, and so on, which may either be set per-dataset or inherited from the parent dataset.
 
-Compared to Btrfs, ZFS manages its own mountpoints as inherent properties of the dataset. This is both incredibly useful and bothersome; on one hand, having mountpoints intrinsicly related to datasets allows for easier management and more clarity than legacy mounting, but on the other hand it may turn confusing and inflexible when managing complex setups.
+Compared to Btrfs, ZFS manages its own mountpoints as inherent properties of the dataset. This is both incredibly useful and bothersome; on one hand, having mountpoints intrinsicly related to datasets allows for easier management and more clarity than legacy mounting, but on the other hand it may turn confusing and inflexible when managing complex setups. In any case, you can opt-out from letting ZFS managing mountpoints for a given dataset by setting the mountpoint to `legacy`, and mounting it manually as you would with any other filesystem.
 
-### 2.2.1. Creating the ZFS pool
+### 2.3.1. Creating the ZFS pool
 
 Our case is quite simple, given that we only have a single drive. 
 
@@ -373,11 +377,11 @@ Create a new dataset called `extzfs` (or whatever you prefer), being careful to 
 
 You may have to specify `-f` if the partition wasn't empty before. Note the `-m none` option, which will set no mountpoint for the root dataset of the pool itself. Compared to Btrfs, ZFS doesn't expose datasets as subdirectories of their parent pool, so it makes little sense to allow mounting the root dataset.
 
-### 2.2.1. Creating an encrypted dataset root
+### 2.3.2. Creating an encrypted dataset root
 
-As mentioned before, we are going to use native ZFS encryption, which is generally considered safe, but it _may_ not as water-tight and battle-tested as LUKS. This is generally not a problem for most people but the most paranoid. If you count yourself among their ranks, remember that you can always use LUKS on top of ZFS. It may end up being more complex, but it's a viable option.
+As mentioned before, we are going to use native ZFS encryption, which is generally considered safe, but it _may_ not be as water-tight and battle-tested as LUKS; this is generally not a problem for most people except the most paranoid. If you count yourself among their ranks, remember that you can always use LUKS on top of ZFS. It may end up being more complex, but it's a viable option.
 
-In order to create an encrypted dataset, we need to create an encrypted dataset that will act as the encryption root for all other datasets. We will call it `extzfs/encr`:
+First, we need to create an encrypted dataset; this will act as the encryption root for all the other datasets. We will (arbitrarily) call it `extzfs/encr`:
 
 ```
 # zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt -o mountpoint=none -o compression=lz4 extzfs/encr
@@ -385,24 +389,22 @@ Enter new passphrase:
 Re-enter new passphrase:
 ```
 
-Notice that we are using the `passphrase` key format alongsize the `prompt` key location. This means that ZFS will expect the encryption key in the form of a password entered by the user. Another option would be to use a key file, which is arguably more secure but also incredibly more cumbersome to use, so I'll leave it as an exercise to the reader how to use one.
+Notice that we are using the `passphrase` key format alongsize the `prompt` key location. This means that ZFS will expect the encryption key in the form of a password entered by the user. Another option would be to use a key file, which is arguably more secure but also incredibly more cumbersome to use for the root device, so I'll leave how to use one as an exercise to the reader.
 
 Like with LUKS, I recommend picking a safe password that's easy to remember but hard to guess. See paragraph 2.2.1. for more details.
 
-Also, like in Btrfs's case I will enable compression in order to spare some space on my small SSD. This _may_ potentially leak a bit of information about the data contained, but it's generally not a problem for most people. See next section for more info.
+Also, like in Btrfs's case I will enable compression in order to spare some space on my small SSD. This _may_ potentially leak a bit of information about the data contained inside the encrypted container, but it's generally not a problem for most people. 
 
-### 2.2.2. Creating the system dataset
+### 2.3.3. Creating the system dataset
 
-Now that we have an encryption root, we can create all the datasets we need under it.
+Now that we have an `encryptionroot`, we can create all the datasets we need under it, and they will be encrypted and unlocked automatically along with it.
 
-It's good practice to create a hierchy that allows for the quick and easy creation of new boot environments.
+Keeping in mind that's good practice to create a hierchy that allows for the quick and easy creation of new boot environments, under `encr` we are going to create:
 
-In general, under `encr` we are going to create:
-
-1. A `root` dataset, which will not be mounted, under which we will place datasets contain system images;
-2. A `home` dataset, which will act as the root for all user-data datasets.
-3. A `default` dataset under `root`, which will be mounted as `/` and contain the current system image.
-4. A `logs` dataset for `/var/log` under `default`, which is required to be a separate dataset in order to enable the ACLs required by `systemd-journald`.
+1. A `root` dataset, which will not be mounted, and under which we will place datasets contain system images
+2. A `home` dataset, which will act as the root for all user-data datasets
+3. A `default` dataset under `root`, which will be mounted as `/` and contain the system we're going to install
+4. A `logs` dataset for `/var/log` under `default`, which is required to be a separate dataset in order to enable the ACLs required by `systemd-journald`
 5. `users` and `root` datasets under `home`, which will respectively be mounted as `/home` and `/root`.
 
 ```
@@ -414,7 +416,7 @@ In general, under `encr` we are going to create:
 # zfs create -o mountpoint=/root extzfs/encr/home/root
 ```
 
-After this, the situation should look like this:
+After running the commands above, the situation should look like the following:
 
 ```
 # zfs list
@@ -429,9 +431,9 @@ extzfs/encr/root/default    231K    225G      133K  /tmp/mnt
 extzfs/encr/root/logs        98K    225G       98K  /tmp/mnt/var/log
 ```
 
-Notice how all mountpoints are relative to `/tmp/mnt`, which is the alternate root the `extzfs` pool was imported with (in this case, created). The prefix will be stripped when importing the pool on the final system, leaving only the real mountpoints. This feature makes incredibly convenient mounting systems installed on ZFS for inspection, because the entire hierarchy is properly mounted under any directory you choose.
+Notice how all mountpoints are relative to `/tmp/mnt`, which is the alternate root the `extzfs` pool was imported with (in this case, created) using the `-R` flag. The prefix will be stripped when importing the pool on the final system, leaving only the real mountpoints. This feature makes mounting systems installed on ZFS incredibly convenient, because the entire hierarchy is properly mounted under any directory you choose, allowing to rapidly chroot into the system and perform emergency maintenance operations.
 
-### 2.2.3. Setting the bootfs
+### 2.3.4. Setting the bootfs
 
 The pool's `bootfs` property can be used to indicate which dataset contains the desired boot environment. This is not necessary, but it helps simplifying the kernel command line.
 
@@ -453,9 +455,9 @@ To export the pool and unmount all datasets, run:
 
 Installing Arch Linux is not the complex task it was a few decades ago. Arguably, it requires a bit of knowledge and experience, but it's not out of reach for most tech-savvy users.
 
-In general, when installing Arch on a new system (in this case, a portable SSD), there are two basic approaches:
+In general, when installing Arch onto a new drive (in this case, our portable SSD), there are two basic approaches:
 
-1. Install a fresh system from either an existing Arch Linux install[^12] or the Arch Linux ISO;
+1. Install a fresh system from either an existing Linux install[^12] or the Arch Linux ISO;
 2. Clone an existing system to the new drive.
 
 I'll go cover both approaches in the next sections, alongside with a few tips and tricks I've learnt over the years.
@@ -507,14 +509,14 @@ In general, the steps somewhat resemble the following, regardless of what filesy
 
 ### 3.2.1. Installing from an existing Arch Linux install
 
-If you are running from an existing Arch Linux install or the Arch ISO, installing a base system is as easy as running `pacstrap` on the mountpoint of the root filesystem:
+If you are running from an existing Arch Linux install or the Arch ISO, installing a base system is as easy as running `pacstrap` (from the `arch-install-scripts` package) on the mountpoint of the root filesystem:
 
 ```
 # pacstrap -K /tmp/mnt base perl neovim
 [lots of output]
 ```
 
-I've also thrown in `neovim` because there are no editors installed by default in `base`, but feel free to use whatever you prefer. `perl` is also required by several packages, and not installing it may trigger unpredictable issues later.
+I've also thrown in `neovim` because there are no editors installed by default in `base`, but feel free to use whatever you like. `perl` is also (implictly) required by several packages, and not installing it may trigger unpredictable issues later.
 
 Now enter the new system with `arch-chroot`:
 
@@ -524,18 +526,18 @@ Now enter the new system with `arch-chroot`:
 
 ### 3.2.2. Installing from a non-Arch system
 
-All the steps above, except for `pacstrap`, can be performed from basically any Linux distribution. If you are running from a non-Arch system, don't worry - there are workarounds available for that. 
+All the steps above (except for `pacstrap`) can be performed from basically any Linux distribution. If you are running from a non-Arch system, don't worry - there are workarounds available for that. 
 
-An always viable solution is always [to use the bootstrap tarball from an Arch mirror](https://wiki.archlinux.org/title/Install_Arch_Linux_from_existing_Linux#Method_A:_Using_the_bootstrap_tarball_(recommended)). My favourite is by far building `pacman` from source, and then using it to install the base system.
+An always viable solution is always [to use the bootstrap tarball from an Arch mirror](https://wiki.archlinux.org/title/Install_Arch_Linux_from_existing_Linux#Method_A:_Using_the_bootstrap_tarball_(recommended)). 
 
-For instance, to build `pacman` on Debian:
+A trickier (but arguably more fun) path is to build `pacman` from source, and then using it to install the base system. For instance, on Debian:
 
 ```
 $ sudo apt install build-essential meson cmake libcurl4-openssl-dev libgpgme-dev libssl-dev libarchive-dev pkgconf
 [...]
 $ wget -O - https://sources.archlinux.org/other/pacman/pacman-6.0.2.tar.xz | tar xvfJ -
 $ cd pacman-6.0.2
-$ meson setup --default-library static build # avoid linking pacman with a shared libalpm
+$ meson setup --default-library static build # avoid linking pacman with the newly built shared libalpm
 [...]
 $ ninja -C build
 [...]
@@ -555,7 +557,7 @@ Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
 EOF
 ```
 
-For this time only, I have disabled signature verification because going through the whole ordeal of setting up `pacman-key` and importing the Arch Linux signing keys for a hastily built `pacman` binary is very troublesome. If you _really_ concerned about security, use the bootstrap tarball instead.
+For this time only, I have disabled signature verification because going through the whole ordeal of setting up `pacman-key` and importing the Arch Linux signing keys for a makeshift `pacman` install is very troublesome. If you are _really_ concerned about security, use the bootstrap tarball instead.
 
 Create the required database directory for `pacman`, and install the same packages as above:
 
@@ -579,6 +581,8 @@ $ sudo chroot /tmp/mnt /bin/bash
 [root@chroot /]# pacman-key --populate archlinux
 ```
 
+You can now proceed as if you were installing from an existing Arch Linux system.
+
 ### 3.2.3. Installing a kernel
 
 In order to install packages inside your chroot, you need to enable at least one Pacman mirror first in `/etc/pacman.d/mirrorlist`. If you used `pacstrap` from an existing Arch Linux system, this may be unnecessary.
@@ -589,19 +593,22 @@ After enabling one or more mirrors, you can install a kernel of your choice:
 [root@chroot /]# pacman -Sy linux-lts linux-lts-headers linux-firmware
 ```
 
-Notice that I've chosen to install the LTS kernel, which is in general a good idea when depending on out-of-tree kernel modules such as ZFS or NVIDIA drivers. Feel free to install the latest kernel if you prefer, but remember to be careful when updating the system for module breakage. 
+Notice that I've chosen to install the LTS kernel, which is in general a good idea when depending on out-of-tree kernel modules such as ZFS or NVIDIA drivers. Feel free to install the latest kernel if you prefer, but remember to be careful when updating the system due to potential module breakage. 
 
-The command above will also generate the initrd, which we don't really need (we will use UKI instead), and that we will delete later.
+The command above will also generate an initrd, which we don't really need (we will use UKI instead). We will have to delete that later.
 
 ### 3.2.4. Installing the correct helpers for your filesystem
 
 In order for `fsck` to properly run, or to mount ZFS, you need to install the correct package for your filesystem:
 
-1.  If you've installed your system over ZFS, this is a good time to set-up the ArchZFS repository in the chroot, as described above;
-2. If you've installed your system over Btrfs, you need to install `btrfs-progs`. `cryptsetup` should already have been pulled in as a dependency to `systemd`.
-3. If you are using another filesystem, install the correct package. 
+1.  If you've installed your system over ZFS, this is a good time to set-up the ArchZFS repository in the chroot (see above)
+2. If you've installed your system over Btrfs, you need to install `btrfs-progs`. `cryptsetup` should already have been pulled in as a dependency to `systemd`
+3. If you are using another filesystem, install the correct package:
+
     a. For `ext4`, `e2fsprogs` should already have been pulled in by dependencies installed by `base` - ensure you can run `e2fsck` from the chroot. 
+
     b. For `XFS`, install `xfsprogs`.
+
     c. For `F2FS`, install `f2fs-tools`.
 
 Remember to also always install `dosfstools`, which is required to `fsck` the FAT filesystem on the ESP.
@@ -611,7 +618,7 @@ Remember to also always install `dosfstools`, which is required to `fsck` the FA
 Instead of installing the system from scratch, you may clone an existing system instead. Just remember after the move to
 
 1. fix `/etc/fstab` with the new `PARTUUID`s
-2. give the system an unique configuration (i.e., change the hostname) in order to avoid clashes
+2. give the system an unique configuration (i.e., change the hostname, fix the hostid, ...) in order to avoid clashes
 3. do not transfer the contents of the ESP - if you use UKI and mount it at `/boot/efi`, you will regenerate its contents later when you reapply the steps from above.
 
 There are 3 feasible ways to do this.
@@ -619,35 +626,38 @@ There are 3 feasible ways to do this.
 ### 3.3.1. Use `dd` to clone a partition block by block.
 
 This methods has a few advantages, and quite a bit of downsides:
-    + **PRO**: because it literally clones an entire disk, byte per byte, to another, it is the most conservative method among all.
-    - **CON**: because it clones an entire disk byte per byte, issues such as fragmentation and data in unallocated sectors are copied.
-    - **CON**: because it clones an entire disk byte per byte, the target partition or disk must be at least as large as the source, or the source must be shrunk beforehand, which is not always possible.
 
-    If you opt for this solution, just run `dd` and copy an existing partition to the LUKS container:
++ **PRO**: because it literally clones an entire disk, byte per byte, to another, it is the most conservative method among all
+- **CON**: because it clones an entire disk byte per byte, issues such as fragmentation and data in unallocated sectors are copied
+- **CON**: because it clones an entire disk byte per byte, the target partition or disk must be at least as large as the source, or the source must be shrunk beforehand, which is not always possible (like with XFS)
 
-    `# dd if=/path/to/source/partition of=/dev/mapper/ExtLUKS bs=1M status=progress`
+If you opt for this solution, just run `dd` and copy one or more existing partitions to the LUKS container:
+
+`# dd if=/path/to/source/partition of=/dev/mapper/ExtLUKS bs=1M status=progress`
 
 ### 3.3.2. Use `rsync` to clone a filesystem onto a new partition.
 
 This method is the most flexible,because it's completely agnostic regarding the source and destination filesystems, as long as the destination can fit all contents from the source. Just mount everything where it's supposed to go, and run (as root):
     
 ```
-# rsync -qaHAXS /{bin,boot,etc,home,lib,opt,root,sbin,srv,usr,var} /path/to/dest
+# rsync -qaHAXS /{bin,boot,etc,home,lib,opt,root,sbin,srv,usr,var} /tmp/mnt/dest
 ```
 
 The root has now been cloned, but it's missing some base directories.
 
 Given that I assume we are booting from an Arch Linux system, just reinstall `filesystem` inside the new root:
+
 ```
-$  sudo pacman -r /tmp/shoot --config /tmp/shoot/etc/pacman.conf -S filesystem
+$  sudo pacman -r /tmp/mnt --config /tmp/mnt/etc/pacman.conf -S filesystem
 ```
+
 This will fixup any missing directory and symlink, such as `/dev`, `/proc`, ... Notice that only for this time I have used the `-r` parameter. This changes pacman's root directory, and should always used with extreme care.
 
-### 3.3.3. Use Btrfs or ZFS snapshotting and replication facilities to migrate existing subvolumes/datasets.
+### 3.3.3. Use Btrfs snapshotting and replication facilities to clone existing subvolumes.
 
-Both Btrfs and ZFS support incremental snapshotting and sending/receiving them as incremental data streams. This is extremely convenient, because replication ensures that files are transferred perfectly (with the right permissions, metadata, ...) without having to copy any unnecessary empty space.
+Btrfs supports incremental snapshotting and sending/receiving them as incremental data streams. This is extremely convenient, because replication ensures that files are transferred perfectly (with the right permissions, metadata, ...) without having to copy any unnecessary empty space.
 
-1. In order to duplicate a system using Btrfs, partition and format the disk as described above, and then snapshot and send the subvolumes to the new disk:
+In order to duplicate a system using Btrfs, partition and format the disk as described above, and then snapshot and send the subvolumes to the new disk. Assuming the root subvolume has been mounted under `/tmp/src`
 
 ```
 # mount -o subvol=/ /path/to/root/dev /tmp/src
@@ -664,9 +674,7 @@ At subvol /tmp/src/@home-mig
 At subvol @home-mig
 ```
 
-The system is now been correctly transferred. If you are running the commands through a network (like via SSH), you may want to either compress and decompress the stream or use `pv` to monitor the transfer speed.
-
-Rename the subvolumes to their original names and delete the now unnecessary snapshots [^14]:
+The system has now been correctly transferred. Rename the subvolumes to their original names and delete the now unnecessary snapshots if you want to reclaim the space [^14]:
 
 ```
 # perl-rename -v 's/\-mig//g' /tmp/mnt/@* 
@@ -679,18 +687,21 @@ Delete subvolume (no-commit): '/tmp/src/@home-mig'
 # mount -o subvol=@,compress=lzo /dev/mapper/ExtLUKS /tmp/mnt
 ```
 
-Unmount the root and mount the root subvolume. You are now ready to move to the next step.
+Unmount the root subvolume and mount the system as you normally would. You are now ready to move to the next step.
 
-2. With ZFS, the process is very similar to Btrfs, with a few different steps depending if your source datasets are already encrypted or not.
+### 3.3.4. Use ZFS snapshotting and replication facilities to clone existing datasets.
 
-Like above, after creating a pool, snapshot your root disk _recursively_. If your system resides on an encrypted dataset, snapshotting the encryption root will also snapshot all the datasets contained within it:
+With ZFS, the process is very similar to Btrfs, with a few different steps depending if your source datasets are already encrypted or not.
+
+After creating a pool, snapshot your root disk _recursively_. If your system resides on an encrypted dataset, snapshotting the encryption root will also snapshot all the datasets contained within it:
 
 ```
-# zfs snapshot -r zroot/encr@migration # or else, snapshot all the single datasets
+# zfs snapshot -r zroot/encr@migration # otherwise, snapshot all the required datasets
 ```
 
-after doing that, you can either:
-- create a new encrypted dataset and send the unencrypted snashots to it:
+After doing that, you can either:
+
+1. create a new encrypted dataset and send the unencrypted snashots to it:
   ```
   # zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt -o mountpoint=none -o compression=lz4 extzfs/encr
   # for DATASET in root home ... # note: replace with the actual datasets
@@ -698,18 +709,16 @@ after doing that, you can either:
   # ...
   ```
 
-  Migrating unencrypted datasets to an encrypted root dataset requires transferring the snapshots one by one. It's generally easier to just let the newly received snapshots inherit properties from their parents, and then fixing mountpoints and other properties later using `zfs set`. You can also do it directly if necessary by setting the properties using the `-o` flag with `zfs recv`.
+  Migrating unencrypted datasets to an encrypted root dataset requires transferring the snapshots one by one. It's generally easier to just let the newly received snapshots inherit properties from their parents, and then fixing mountpoints and other properties later using `zfs set`. You can also do it directly, if necessary, by setting the properties using the `-o` flag with `zfs recv`.
 
   Ensure that all datasets are correctly mounted before moving to the next step.
 
-- clone another encrypted dataset as raw data:
+2. clone another encrypted dataset as raw data:
   ```
   # zfs send -Rw zroot/encr@migration | zfs recv -F extzfs/encr
   ```
   
-  This will recursively recreate all the datasets as they were in the source, under a new encrypted dataset called `extzfs/encr/encr`. The new encryption root will have the same key as the source dataset, so you will be able to unlock it with the same passphrase. All properties and mountpoints will also be kept as they were on the source. 
-
-  Ensure that all new datasets are correctly mounted under the altroot defined above.
+  This will recursively clone all the datasets under a new encrypted dataset called `extzfs/encr/encr`. The new encryption root will have the same key as the source dataset, so you will be able to unlock it with the same passphrase. All properties and mountpoints will also be kept.
 
   Given that all properties have been preserved, it may be enough to run 
 
@@ -717,11 +726,15 @@ after doing that, you can either:
   # zfs mount -la
   ```
 
-  to unlock and mount all new datasets.
+  to unlock and mount all new datasets. If that doesn't result in correctly mounted datasets, ensure that all properties (including mountpoints) have been correctly preserved.
+
+### 3.3.5. Migrating filesystems: wrapping up
+
+Regardless of the method you've picked, you should now have a working system on the new disk. Chroot into it as described in section 3.2., and then proceed to the next step.
 
 ## 3.4. Configuring the base system
 
-Whatever path you took, you should now be in a working Arch Linux chroot. 
+Regardless of whatever path you took, you should now be in a working Arch Linux chroot. 
 
 ### 3.4.1. Basic configuration
 
@@ -733,29 +746,29 @@ Most of the pre-boot configuration steps now are basically the same as a normal 
 [root@chroot /]# locale-gen                    # generate the locales configured above
 ```
 
-Populate the `/etc/fstab` file with the correct entries for all your partitions. Remember to use PARTUUIDs or plain UUIDs, and never rely on disk and partition names (except for /dev/mapper device files). The contents of `/etc/fstab` will vary depending on the filesystem you've picked:
+The next step is to populate the `/etc/fstab` file with the correct entries for all your partitions. Remember to use PARTUUIDs or plain UUIDs, and never rely on disk and partition names (except for `/dev/mapper` device files). The contents of `/etc/fstab` will vary depending on the filesystem you've picked. Remember that the initrd will be the one to unlock the LUKS container, so you don't need to specify it in `/etc/crypttab`.
 
+- `/etc/fstab` for  ext4/XFS/F2FS with LUKS:
 ```
-# /etc/fstab for ext4/XFS/F2FS with LUKS
 # it is not strictly necessary to also include the root partition, but it's a good idea in case of remounts
 /dev/mapper/ExtLUKS                             /            ext4    defaults      0 1
 PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults      0 2
 ```
 
+- `/etc/fstab` for Btrfs with LUKS:
 ```
-# /etc/fstab for Btrfs with LUKS
 /dev/mapper/ExtLUKS                             /            btrfs   defaults,subvol=@,compress=lzo       0 0
 /dev/mapper/ExtLUKS                             /home        btrfs   defaults,subvol=@home,compress=lzo   0 0
 PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults                             0 2
 ```
 
-In case of ZFS, all datasets mountpoints are managed via the filesystem itself. `/etc/fstab` will only contain the ESP (unless you have created legacy mountpoints):
+- With ZFS, all datasets mountpoints are managed via the filesystem itself. `/etc/fstab` will only contain the ESP (unless you have created legacy mountpoints):
 
 ```
 PARTUUID=4a0eab50-7dfc-4dcb-98a6-ad954d344ad7   /boot/efi    vfat    defaults      0 2
 ```
 
-Set a password for root:
+Then, set a password for root:
 
 ```
 [root@chroot /]# passwd
@@ -764,7 +777,7 @@ Retype new password:
 passwd: password updated successfully
 ```
 
-And create a standard user. Remember to mount `/home` first if you are using a separate partition or subvolume!
+and create a standard user. Remember to mount `/home` first if you are using a separate partition or subvolume!
 
 ```
 [root@chroot /]# mount /home # if using a separate partition or subvolume, not needed with ZFS
@@ -775,7 +788,7 @@ Retype new password:
 passwd: password updated successfully
 ```
 
-Before moving to the next step, ensure you have all packages required for connectivity, or you will be unable to install packages from the internet after you boot up the system.
+Before moving to the next step, install all packages required for connectivity, or you may be unable to connect to the internet after you boot up the system.
 
 For simplicity, I'll just install `NetworkManager`:
 
@@ -784,7 +797,7 @@ For simplicity, I'll just install `NetworkManager`:
 [...]
 ```
 
-As the last step before moving to the next point, remember to configure the correct console layout in `/etc/vconsole.conf`, or you will have a hard time typing your password at boot time:
+As the last step before moving to the next point, remember to configure the correct console layout in `/etc/vconsole.conf`, or you will have a hard time typing your password at boot time (the file will be copied in the _initrd_):
 
 ```
 [root@chroot /]# cat > /etc/vconsole.conf <<'EOF'
@@ -1139,9 +1152,9 @@ Thanks a lot for reading, and as always feel free to contact me if you find anyt
 
 [^11]: Once I've lost a ZFS pool due to a bug in a Git pre-alpha release of OpenZFS. That day, I learnt that running an OS from a pre-alpha filesystem driver is not a hallmark of good judgement.
 
-[^12]: If you compile pacman and/or use an Arch chroot, it's absolutely doable from any distro, really, as long as it's kernel is new enough to run an Arch chroot. 
+[^12]: If you compile pacman and/or use an Arch chroot, it's absolutely doable from any distro, really, as long as it's kernel is new enough to run an Arch chroot. See section 3.2.2. to learn how to do this.
 
-[^13]: I don't recommend using `nvidia-open` or Nouveau as of the time of writing (September '23), due to the immature state of the first is and the utter incompleteness the latter. The closed source `nvidia` driver is still the best choice for NVIDIA GPUs, even if it sucks due to how "third-party" it feels (the non-Mesa userland is particularly annoying).
+[^13]: I don't recommend using `nvidia-open` or Nouveau as of the time of writing (October '23), due to the immature state of the first is and the utter incompleteness the latter. The closed source `nvidia` driver is still the best choice for NVIDIA GPUs, even if it sucks due to how "third-party" it feels (the non-Mesa userland is particularly annoying).
 
 [^14]: Notice that I'm using `perl-rename` in place of `rename`, because I honestly think that the latter is just terrible. `perl-rename` is a Perl script that can be installed separately (on Arch is in the `perl-rename` package) and it's just better than util-linux' `rename` in every way possible.
 

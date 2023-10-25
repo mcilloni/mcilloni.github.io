@@ -1,7 +1,7 @@
-------------
+---
 layout: post
 title: Bring your Arch Linux install everywhere 
-------------
+---
 
 The first time I installed Arch Linux was in 2007. In that foregone time, the only supported architecture was 32-bit x86, and the ISOs carried dubious release names such as _"0.8 Voodoo"_.
 

@@ -13,6 +13,8 @@ This, alongside ultra-fast USB drive bays, makes self-configuring portable insta
 
 In this post, I'll show step-by-step (with examples) how to install Arch Linux on a USB drive, and how to make it bootable everywhere [^2], including virtual machines. I will try to cover as much corner cases as possible, but as always feel free to comment or contact me if you think something may be missing.
 
+With a few adaptations, this guide may also be helpful to install Arch Linux on a non-mobile drive, if you so desire.
+
 # Prerequisites
 
 - **An SSD drive in a USB enclosure**. In my experience, _"pre-made"_ external USB disks are designed for storage and tend to perform way worse than internal drives in an external caddy. Enclosures also have the extra advantage improves durability [^3], and allows you to pop the SSD in a computer if you _really_ need to. 
@@ -797,7 +799,7 @@ For simplicity, I'll just install `NetworkManager`:
 [...]
 ```
 
-As the last step before moving to the next point, remember to configure the correct console layout in `/etc/vconsole.conf`, or you will have a hard time typing your password at boot time (the file will be copied in the _initrd_):
+As the last step before moving to the next point, remember to configure the correct console layout in `/etc/vconsole.conf`, or you will have a hard time typing your password at boot time (the file will be copied to the _initrd_):
 
 ```
 [root@chroot /]# cat > /etc/vconsole.conf <<'EOF'
@@ -807,7 +809,9 @@ EOF
 
 ### 3.4.2. Configuring the kernel
 
-Configuring the system for booting on multiple systems is easier than it sounds thanks to how good Linux is at automatic configuration, but it still requires a bit of preliminary steps:
+Configuring the system for booting on multiple systems is easier than it sounds, thanks to how good Linux and the graphical stack has become at automatically configuring itself depending on the hardware.
+
+In the `chroot`, run the following preliminary steps:
 
 0. (optional) First, install ZFS (if you are using it); if using the LTS kernel, I recommend using `zfs-dkms`, while for a more up-to-date kernel a "fixed" build such as `zfs-linux` is probably safer. 
 1. In order to support systems with an NVIDIA GPU, install the Nvidia driver (`nvidia` or `nvidia-lts`, depending on what you've chosen) [^13].
@@ -815,7 +819,7 @@ Configuring the system for booting on multiple systems is easier than it sounds 
 
 With the kernel and all necessary modules installed, we can now generate a bootable image. 
 
-For this step I've decided to use UKI, which simplifies the process a lot by merging together kernel and initramfs into a single bootable file. This is not strictly necessary, but it allows us to avoid messing the ESP with the contents of `/boot`: only UKIs and the (optional) bootloader will need to reside on it.
+For this step I've decided to use UKI, which is a novel approach to initramfs that simplifies the process a lot, by merging together kernel and initrd into a single bootable file. This is not strictly necessary, but it allows us to avoid messing the ESP with the contents of `/boot`: only UKIs and the (optional) bootloader will need to reside on it.
 
 UKIs can be generated with several initramfs-generating tools, such as `dracut` and `mkinitcpio`. After a somewhat long stint with `dracut`, I've recently switched to `mkinitcpio` (Arch's default) due to how simple it is to configure and customize with custom hooks.
 
@@ -823,7 +827,7 @@ For a portable system, it's best to always boot using the `fallback` preset. The
 
 First, we ought to create a file containing the command line arguments for the kernel. 
 
-The kernel command line is a set of arguments passed to the kernel at boot time, which can be used to configure the kernel and the initramfs. These parameters under UEFI are usually passed by a bootloader via boot arguments to the kernel when invoked from the ESP; UKI differs in this regard by directly embedding the command line in the image itself.
+The kernel command line is a set of arguments passed to the kernel at boot time, which can be used to configure how the kernel, the initramfs or systemd will behave. Under UEFI, these parameters are usually passed by a bootloader as boot arguments to the kernel when invoked from the ESP. UKI differs in this regard by directly embedding the command line in the image itself.
 
 Create a file called `/etc/kernel/cmdline` with at least the following contents; feel free to add more parameters if you need them.
 
@@ -835,17 +839,17 @@ rw nvidia-drm.modeset=1 cryptdevice=PARTUUID=5c97981e-4e4c-428e-8dcf-a82e2bc1ec0
 
 Omit the rootflags and rootfstype parameters if you are not using Btrfs.
 
-For ZFS:
+For ZFS, try something akin to the following:
 
 ```
 rw nvidia-drm.modeset=1 zfs=extzfs
 ```
 
-which relies on automatic `bootfs` detection to find the root dataset.
+which relies on automatic `bootfs` detection in order to find the root dataset.
 
 After this, edit the `/etc/mkinitcpio.conf` to add any extra modules and hooks required by the new system.
 
-You probably want to load `nvidia` KMS modules early, in order to avoid any issues when booting on systems with an NVIDIA discrete GPU. Notice that this may sometimes cause issues with buggy laptops with hybrid graphics, so remember this tradeoff in case you are hitting this issue.
+You probably want to load `nvidia` KMS modules early, in order to avoid any issues when booting on systems with an NVIDIA discrete GPU. Notice that this may sometimes cause issues with buggy laptops with hybrid graphics, so remember this tradeoff in case you are incurring on this issue.
 
 ```
 MODULES=(nvidia nvidia_drm nvidia_uvm nvidia_modeset)
@@ -866,7 +870,9 @@ HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block encryp
 Notice how the `keyboard` and `keymap` hooks have been specified before either the `zfs` or `encrypt` hooks.
 This ensures that the keyboard and keymap are correctly configured before reaching the root encryption password prompt.
 
-Before triggering the generation of our image, we must enable UKI support in the fallback preset (and disable the default one). Edit `/etc/mkinitcpio.d/linux-lts.preset` as follows:
+Before triggering the generation of our image, we must enable UKI support in the fallback preset (and disable the default one).
+
+Edit `/etc/mkinitcpio.d/linux-lts.preset` as follows:
 
 ```
 # mkinitcpio preset file for the 'linux-lts' package
@@ -888,7 +894,7 @@ fallback_uki="/boot/efi/EFI/BOOT/Bootx64.efi"
 fallback_options="-S autodetect"
 ```
 
-In the preset above, I have completely commented the `default` preset out by removing it from `PRESETS` and commenting all of its entries. Under `fallback`, I only kept the `uki` and `options` entries, in order to avoid generating an initramfs image that we will never use.
+In the preset above, I have completely disabled out the `default` preset by removing it from `PRESETS` and commenting all of its entries. Under `fallback`, I only kept the `uki` and `options` entries, in order to avoid generating an initramfs image that we have no use for.
 
 Run `mkinitcpio -p linux-lts` to finally generate the UKI under `/boot/efi/EFI/BOOT/Bootx64.efi`, which is the custom path I set `fallback_uki` to. This is the location conventionally associated with the UEFI Fallback bootloader, which will make the external drive bootable on any UEFI system without the need of any configuration or bootloader, as long as booting from USB is allowed (and UEFI Secure Boot is off).
 
@@ -898,7 +904,7 @@ Run `mkinitcpio -p linux-lts` to finally generate the UKI under `/boot/efi/EFI/B
 [...]
 ```
 
-Optionally, clean up by removing the unnecessary initramfs images automatically created by `pacman` when installing the kernel package previously. These are unnecessary when using UKIs, and will never be generated again with the modifications we made to the kernel preset:
+Optionally, clean up `/boot` by removing the initramfs images previously generated by `pacman` when installing the kernel package. These are unnecessary when using UKIs, and will never be generated again with the modifications we made to the kernel preset:
 
 ```
 # rm /boot/initramfs*.img
@@ -906,17 +912,19 @@ Optionally, clean up by removing the unnecessary initramfs images automatically 
 
 ### 3.4.2. Installing a bootloader (optional)
 
-In principle, the instructions above make having a bootloader at all pretty redundant. You can also always tinker with command line arguments using the UEFI Shell, which can be either already installed on the machine you are booting on or copied in the ESP under `\EFI\Shellx64.efi`.
+In principle, the instructions above make having a bootloader at all somewhat redundant. With UEFI, you can also always tinker with command line arguments using the UEFI Shell, which can be either already installed on the machine you are booting on or copied in the ESP under `\EFI\Shellx64.efi`.
 
-In case you want to install a bootloader, change the `fallback_uki` argument to a different path (i.e. `/boot/efi/EFI/Linux/arch-linux-lts.efi`) and then just follow [Arch Wiki's instructions on how to set up `systemd-boot`](https://wiki.archlinux.org/title/Systemd-boot). Ensure that `bootctl install` copies the bootloader to `\EFI\BOOT\Bootx64.efi`, or it will not get picked up by the UEFI firmware automatically.
+In case you want to install a bootloader, change the `fallback_uki` argument to a different path (i.e. `/boot/efi/EFI/Linux/arch-linux-lts.efi`) and then just follow [Arch Wiki's instructions on how to set up `systemd-boot`](https://wiki.archlinux.org/title/Systemd-boot) (or `rEFInd`, or `GRUB`, or whatever you like).
+
+If you opt for `systemd-boot`, ensure that `bootctl install` copies the bootloader to `\EFI\BOOT\Bootx64.efi`, or it will not get picked up by the UEFI firmware automatically.
 
 ## 3.5. Unmounting the filesystems
 
-Before attempting to boot the system, remember to unmount all filesystems and close the LUKS container. After ensuring you followed all steps correctly, exit the chroot, and then:
+Before attempting to boot the system, remember to unmount all filesystems and close the LUKS container. After ensuring you followed all the steps above correctly, exit the chroot, and then:
 
 ```
 [root@chroot /]# exit
-$ sudo umount -l /tmp/mnt/{dev,sys,proc,run} # this prevents issues with busy mounts
+$ sudo umount -l /tmp/mnt/{dev,sys,proc,run} # the `-l` flag prevents issues with busy mounts
 ```
 
 If you used LUKS:
@@ -925,13 +933,13 @@ If you used LUKS:
 $ sudo umount -R /tmp/mnt
 ```
 
-If you used ZFS, you also have to remember to export the pool - otherwise, the system won't boot:
+If you used ZFS, you also have to remember to export the pool - otherwise, the pool will still be in use next boot, and the initrd scripts won't be able to import it:
 
 ```
 $ sudo zpool export extzfs
 ```
 
-This command may sometimes fail with an error message similar to `cannot export 'extzfs': pool is busy`. This is usually caused by a process still using the pool, such as a shell with its current directory set to a directory inside the pool. If this happens, the fastest way to fix it is to reboot the system, import the pool (without necessarily unlocking any dataset), and then immediately exporting it. This will ensure that the pool is not in use and untie it from the current system's hostid.
+This command may sometimes fail with an error message similar to `cannot export 'extzfs': pool is busy`. This is usually caused by a process still using the pool, such as a shell with its current directory set to a directory inside the pool. If this happens, the fastest way to fix it is to reboot the system, import the pool (without necessarily unlocking any dataset), and then immediately export it. This will ensure that the pool is not in use and untie it from the current system's hostid.
 
 # 4. Booting the system
 
@@ -949,17 +957,17 @@ Regardless of what approach you prefer, you should install UEFI support for gues
 
 ### 4.1.1. Using `libvirt`
 
-If you are using `libvirt`, you can use `virt-manager` to create a new VM (or dabble with `virsh` and XML directly, which may be annoying). If you opt for this approach, remember to:
+If you are using `libvirt`, you can use `virt-manager` to create a new VM (or dabble with `virsh` and XML directly, if that's more to your liking). If you opt for this approach, remember to:
 
 1. Select _the device_, and not partitions or `/dev/mapper` devices. The disk must be unmounted and no partitions should be in use. Pick "Import an image" and then select `/dev/disk/by-id/usb-XXX`, without `-partN`, via the _"Browse local"_ button.
 
-2. Select "Customize configuration before install", or you won't be able to enable UEFI support. In the configuration screen, in the Overview pane, select the "Firmware" tab and pick an x86-64 `OVMF_CODE.fd`. If you don't see any, check that you've installed all the correct packages.
+2. Select "Customize configuration before install", or you won't be able to enable UEFI support. In the configuration screen, in the `Overview` pane, select the "Firmware" tab and pick an x86-64 `OVMF_CODE.fd`. If you don't see any, check that you've installed all the correct packages.
 
-3. _(optional)_ If you wish, you may enable VirGL in order to have a smoother experience while using the VM. If you're interested, toggle the "OpenGL" option in "Display Spice" (after disabling the SPICE socket, by setting "Listen type" to `None`). Check that the adapter model is "Virtio", and enable 3D acceleration. [^16]
+3. _(optional)_ If you wish, you may enable VirGL in order to have a smoother experience while using the VM. If you're interested, toggle the _"OpenGL"_ option under the `Display Spice` device section. Also remember to disable the SPICE socket, by setting the `Listen type` for SPICE to `None`. Check that the adapter model is `Virtio`, and enable 3D acceleration. [^16]
 
 ### 4.1.2. Using raw `qemu`
 
-Using plain Qemu in place of `libvirt` is undoubtedly less convenient. It definitely requires more tinkering for networking (especially if you opt for SLIRP, which is slow and limited), with the advantage of being more versatile and not requiring setting up `libvirt` - which tends to be problematic on machines with complex firewall rules and network setups.
+Using plain Qemu in place of `libvirt` is undoubtedly less convenient. It definitely requires more tinkering for networking (especially if you don't want to use SLIRP, which is slow and limited), with the advantage of being more versatile and not requiring setting up `libvirt` - which tends to be problematic on machines with complex firewall rules and network configurations.
 
 First, make a copy of the default UEFI variables file:
 
@@ -973,7 +981,7 @@ Then, temporarily take ownership of the disk device, in order to avoid having to
 $ sudo chown $(id -u):$(id -g) /dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0
 ```
 
-Finally, run Qemu with the following command line. In this case, I'll use SLIRP for simplicity, and enable VirGL for a smoother experience:
+Finally, run Qemu with the following command line. In this case, I'll use SLIRP for simplicity, plus I will enable VirGL for a smoother experience:
 
 ```
 $ qemu-system-x86_64 -enable-kvm -cpu host -m 8G -smp sockets=1,cpus=8,threads=1 -drive if=pflash,format=raw,readonly=on,file=/usr/share/ovmf/x64/OVMF_CODE.fd -drive if=pflash,format=raw,file=$PWD/ext_vars.fd -drive if=virtio,format=raw,cache=none,file=/dev/disk/by-id/usb-Samsung_SSD_960_EVO_250G_012938001243-0:0 -nic user,model=virtio-net-pci -device virtio-vga-gl -display sdl,gl=on -device intel-hda -device hda-duplex
@@ -981,9 +989,9 @@ $ qemu-system-x86_64 -enable-kvm -cpu host -m 8G -smp sockets=1,cpus=8,threads=1
 
 ## 4.2. Booting on bare hardware
 
-The disk previously created can be booted on any UEFI-enabled x86-64 system, as long as booting from USB is allowed and Secure Boot is disabled.[^17] 
+The disk previously created _should_ be capable of booting on potentially any UEFI-enabled x86-64 system, as long as booting from USB is allowed and Secure Boot is disabled.[^17] 
 
-At machine startup, press the _"Boot Menu"_ key for your system (usually F12 or F8, but may vary considerably depending on the vendor) and select the external SSD. The disk may be referred to as "fallback bootloader" - this is normal, given that we've installed the UKI image in the fallback bootloader location.
+At machine startup, press the _"Boot Menu"_ key for your system (usually F12 or F8, but it may vary considerably depending on the vendor) and select the external SSD. The disk may be referred to as "fallback bootloader" - this is normal, given that we've placed the UKI image at the fallback bootloader location.
 
 ## 4.3. First boot
 
@@ -998,14 +1006,14 @@ Login as root, and proceed with the last missing configuration steps:
 # systemctl enable zfs.target zfs-mount.server zfs-import.target
 ```
 
-After doing this, **reboot the system** and check that the datasets are mounted correctly. You shouldn't need to enable `zfs-import-cache.service` or `zfs-import-scan.service`, as they are not necessary given that we're booting from a single pool which is already imported.
+After doing this, **reboot the system** and check that the datasets are mounted correctly. You shouldn't need to enable `zfs-import-cache.service` or `zfs-import-scan.service` as they are unnecessary, given that we're booting from a single pool which is already imported.
 
 1. Enable and start up the network manager of your choice you've installed previously, such as `NetworkManager`:
    `# systemctl enable --now NetworkManager`
 
-   If you are using a wired connection with no special configuration required, you should see any relevant IPs under `ip address`, and Internet should be working.
+   If you are using a wired connection with DHCP or IPv6 and no special configuration required, you should see any relevant IPs under `ip address`, and Internet should be working.
 
-   If you need special configuration, or wireless, use `nmtui` to configure the network.
+   If you need special configurations, or you must use wireless connectivity, use `nmtui` to configure the network.
 2. With a booted instance of `systemd`, you can now easily set up everything else you are missing, such as:
    - a **hostname** with `hostnamectl set-hostname`;
    - a **timezone** with `timedatectl set-timezone` (you may need to adjust it depending on where you boot from);
@@ -1020,7 +1028,7 @@ After doing this, **reboot the system** and check that the datasets are mounted 
 
 The most useful part about a portable system is to carry a workspace around, so you can work on your projects wherever you are. 
 
-In order to do this, you need to install some kind of desktop environment, which may range from minimal (`dwm`, `sway`, `fluxbox`) to a full environment (like Plasma, GNOME, XFCE, Mate, ...). 
+In order to do this, you need to install some kind of desktop environment, which may range from minimal (`dwm`, `sway`, `fluxbox`) to a full fledged environment like Plasma, GNOME, XFCE, Mate, ... 
 
 Just remember that you are going to use this system on a variety of machines, so it's useful to avoid anything that requires an excessive amount of tinkering to function properly. For instance, if one or more of the systems you plan to target involve NVIDIA GPUs, you may find running Wayland more annoying than just sticking with X11.
 
@@ -1047,7 +1055,7 @@ exec startplasma-x11
 
 and run `startx`.
 
-If you prefer using Wayland, just straight run `startplasma-wayland` instead.
+If you prefer using Wayland, just straight out run `startplasma-wayland` instead.
 
 # 5. Basic troubleshooting
 
@@ -1061,7 +1069,7 @@ If the initrd fails to find the root device (or the ZFS pool), it means that the
 
    The `fallback` initrd is supposed to contain all the storage and USB drivers needed to boot on any system, but it's possible that some may be missing if your USB controller is either particularly exotic or particularly quirky (e.g. Intel Macs). 
    
-   First, on the affected system, try to probe what drivers are in use for your USB controller. You can use `lspci -k` from a system you can mount the external disk from:
+   First, on the affected system, try to probe what drivers are in use for your USB controller. You can use `lspci -k` from a Linux system you can mount the external disk from:
 
    ```
    $ lspci -k
@@ -1073,13 +1081,13 @@ If the initrd fails to find the root device (or the ZFS pool), it means that the
     [..]
    ```
    
-   Afterwards, add the relevant module to the MODULES array in `/etc/mkinitcpio.conf`, and regenerate the initrd.
+   Afterwards, add the relevant module(s) to the `MODULES` array in `/etc/mkinitcpio.conf`, and regenerate the initrd.
 
 2. The kernel command line is incorrect. The initrd either has the wrong device set, or the kernel is not receiving the correct parameters.
 
    This happens either due to a bad `root` or `zfs` line in `/etc/kernel/cmdline`, or because a bootloader or firmware are passing spurious arguments to the UKI.
 
-   Double check that the `root` or `zfs` line in `/etc/kernel/cmdline` is correct. Some bootloaders such as rEFInd support automatic discovery of bootable files on ESPs; it may be that the bootloader is wrongly assuming the UKI is a EFISTUB-capable kernel image and passing incorrect flags instead.
+   Double check that the `root` or `zfs` line in `/etc/kernel/cmdline` is correct. Some bootloaders such as _rEFInd_ support automatic discovery of bootable files on ESPs; it may also be that the bootloader is wrongly assuming the UKI is a EFISTUB-capable kernel image and passing incorrect flags instead.
 
    In any case, ascertain that the kernel is actually receiving the correct parameters by running 
    
@@ -1091,9 +1099,9 @@ If the initrd fails to find the root device (or the ZFS pool), it means that the
 
    If you are using ZFS and you only specified the target pool instead of the root dataset, remember to set `bootfs` correctly first.
    
-3. **(ZFS only)** An incorrect cachefile has been provided to the initrd. The initrd is trying to use potentially incorrect pool data instead of probing /dev.
+3. **(ZFS only)** An incorrect cachefile has been embedded in the initrd. The initrd is trying to use potentially incorrect pool data instead of scanning `/dev`.
 
-    The `zfs` hook embeds `/etc/zfs/zpool.cache` into the initrd being generated. While this is often useful to reduce boot times, especially with large multi-disk pools, it may cause issues if the cachefile is stale or incorrect. Return back to the setup system, chroot, remove the cachefile and regenerate the UKI. The initrd should now attempt discovery the root pool via `zpool import -d /dev` instead of using the cachefile (or any `zfs_import_dir` you may have set via the kernel command line).
+    The `zfs` hook embeds `/etc/zfs/zpool.cache` into the initrd during generation. While this is often useful to reduce boot times, especially with large multi-disk pools, it may cause issues if the cachefile is stale or incorrect. Return back to the setup system, chroot, remove the cachefile and regenerate the UKI. The initrd should now attempt discovery the root pool via `zpool import -d /dev` instead of using the cachefile (or any `zfs_import_dir` you may have set via the kernel command line).
 
 If none of the previous steps work, you may want to try to boot the system from a different machine to ensure there's not a problem in the setup itself.
 
@@ -1109,13 +1117,13 @@ This is rarely an issue with Intel or AMD GPUs, but it's pretty common with NVID
 
 1. Remember to always enable KMS modules early, in order to avoid any issues when booting on systems with an NVIDIA discrete GPU. Append `nvidia-drm.modeset=1` to the kernel command line, and add the `kms` hook right after `modconf` in `/etc/mkinitcpio.conf`. This should force whatever KMS driver you are using to load early in the boot process, which should provide a working display as soon as the initrd is loaded.
 
-Note that with NVIDIA the framebuffer resolution is often not increased automatically, which may lead to a poor CLI experience. This is a common issue that unfortunately tends only to affect NVIDIA.
+    Note that with NVIDIA the framebuffer resolution is often not increased automatically, which may lead to a poor CLI experience. This is a common issue that unfortunately tends only to affect NVIDIA users.
 
 2. Add `nvidia nvidia_modeset nvidia_uvm nvidia_drm` to the `MODULES` array in `/etc/mkinitcpio.conf`. This will ensure that the NVIDIA driver is always loaded early in the boot process. The module will be ignored and unloaded if not needed on the system currently in use.
 
 3. Do not use any legacy kernel option such as `video=` or `vga=`. There are lots of old guides still suggesting to use them, but they are not compatible with KMS and should not be used anymore.
 
-## 5.4. It's impossible to log in via a display manager, or logging from a tty complains that the user directory is missing
+## 5.4. It's impossible to log in via a display manager, or logging from a `tty` complains that the user directory is missing
 
 This is an issue almost always caused by `/home` not being mounted correctly. Either check that `/home` is correctly configured in `/etc/fstab`, or that `zfs-mount` is enabled and running alongside the `zfs` target.
 
@@ -1123,9 +1131,9 @@ This is an issue almost always caused by `/home` not being mounted correctly. Ei
 
 This post is a very basic guide on how to set up Arch Linux on a portable SSD, which I think feels less like a manual and more like my personal notes. 
 
-This is intentional: while nothing in this guide is unique (everything can be found in the Arch Wiki, in forums or in other blogs), I felt that it was worth summarising my personal experience in a single place, hopefully with the intent of it being useful to someone else outside of myself.
+This is intentional: while nothing in this guide is unique (everything can be found in the Arch Wiki, in forums or in other blogs), I felt that it was worth it gathering some of my personal experience in a single place, hopefully with the intent of it being useful to someone else besides myself.
 
-I suspect that after installing Linux (and Arch in particual) an infinite number of times, I grew a bit desensitized to how tricky and error-prone the process can be, especially for newcomers and people who are not accustomed to system administration and troubleshooting. This is hopefully a good starting point for anyone who wants to try out Arch Linux, and maybe also get a cool portable system out of it.
+I suspect that after installing Linux (and Arch in particual) an infinite number of times, I grew a bit desensitised to how tricky and error-prone the process can be, especially for newcomers and people who are not accustomed to system administration and troubleshooting. Hopefully, the knowledge written in this article will be a good starting point for anyone who wants to try out Arch Linux, and maybe also get a cool portable system out of it.
 
 Thanks a lot for reading, and as always feel free to contact me if you find anything incorrect, imprecise or hard to understand.
 
@@ -1136,9 +1144,9 @@ Thanks a lot for reading, and as always feel free to contact me if you find anyt
 
 [^3]: E.g. if you drop it, there's a non-zero chance the USB connector and/or the logic board will break. USB enclosures are often very cheap compared to SSDs, so using them is the smarter choice in the long run.
 
-[^4]: ARM would be interesting too, if it wasn't for the fact that there's nothing akin to PC standards for ARM devices, so it's a hodgepodge of ad-hoc systems and firmware. The fact that lots of ARM devices are also locked down doesn't help either.
+[^4]: ARM would be interesting too, if it wasn't for the fact that there's nothing akin to PC standards for ARM devices, and even today in 2023 it's still a hodgepodge of ad-hoc systems and clunky firmware. The fact that lots of ARM devices are also severely locked down doesn't help, either.
 
-[^5]: SSDs and HDDs are complex systems and may fail in several ways, which may lead to situations where the data on the disk is still readable using specialized tools, but cannot be accessed, deleted or overwritten using a normal computer (i.e. if the SSD controller fails). Properly encrypted disks are fundamentally random data, and as long as the encryption scheme is secure and the password is strong, you can chuck a broken disk in the trash without losing sleep over it.
+[^5]: SSDs and HDDs are complex systems and may fail in several ways, which may lead to situations where the data on the disk is still readable using specialised tools, but cannot be accessed, deleted or overwritten using a normal computer (i.e. if the SSD controller fails). Properly encrypted disks are fundamentally random data, and as long as the encryption scheme is secure and the password is strong, you can chuck a broken disk in the trash without losing sleep over it.
 
 [^6]: Using ZFS is also a lot of fun IMHO.
 
@@ -1152,13 +1160,13 @@ Thanks a lot for reading, and as always feel free to contact me if you find anyt
 
 [^11]: Once I've lost a ZFS pool due to a bug in a Git pre-alpha release of OpenZFS. That day, I learnt that running an OS from a pre-alpha filesystem driver is not a hallmark of good judgement.
 
-[^12]: If you compile pacman and/or use an Arch chroot, it's absolutely doable from any distro, really, as long as it's kernel is new enough to run an Arch chroot. See section 3.2.2. to learn how to do this.
+[^12]: If you compile pacman and/or use an Arch chroot, it's absolutely doable from any distro, really, as long as its kernel is new enough to run Arch-distributed binaries. See section 3.2.2. to learn how to do this.
 
-[^13]: I don't recommend using `nvidia-open` or Nouveau as of the time of writing (October '23), due to the immature state of the first is and the utter incompleteness the latter. The closed source `nvidia` driver is still the best choice for NVIDIA GPUs, even if it sucks due to how "third-party" it feels (the non-Mesa userland is particularly annoying).
+[^13]: I don't recommend using `nvidia-open` or Nouveau as of the time of writing (October '23), due to the immature state of the first is and the utter incompleteness the latter. The closed source `nvidia` driver is still the best choice for NVIDIA GPUs, even if it sucks due to how "third-party" it feels (its non-Mesa userland is particularly annoying).
 
-[^14]: Notice that I'm using `perl-rename` in place of `rename`, because I honestly think that the latter is just terrible. `perl-rename` is a Perl script that can be installed separately (on Arch is in the `perl-rename` package) and it's just better than util-linux' `rename` in every way possible.
+[^14]: Notice that I'm using `perl-rename` in place of `rename`, because I honestly think that plain `rename` is just outright terrible. `perl-rename` is a Perl script that can be installed separately (on Arch is in the `perl-rename` package) and it's just better than util-linux' `rename` utility in every measurable way.
 
-[^15]: On Windows, you can use Hyper-V, which has the advantage of being already included in Windows and supports using real device drives as virtual disks.
+[^15]: On Windows, you can also consider using Hyper-V, which has also the advantage of being already included in Windows and supports using real device drives as virtual disks.
 
 [^16]: This feature is known to be buggy under the closed-source NVIDIA driver, so beware.
 

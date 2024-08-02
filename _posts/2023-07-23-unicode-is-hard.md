@@ -257,7 +257,7 @@ As an example, let's assume a big-endian system has generated the sequence `[0xF
 All systems, LE or BE, will detect that the first two bytes are a surrogate pair, and read them as they are depending on their endianness. Then:
 
 - A _big-endian_ system will decode `U+FEFF`, which is the BOM, and thus will assume the text is in UTF-16 in its same byte endianness (BE);
-- A _little-endian_ system will instead read `U+FFEE`, which is still the BOM but flipped, so it will assume the text is in the opposite endianness (BE in the case of an LE system).
+- A _little-endian_ system will instead read `U+FFFE`, which is still the BOM but flipped, so it will assume the text is in the opposite endianness (BE in the case of an LE system).
 
 In both cases, the BOM allows the following character to be correctly parsed as `U+0061` (a.k.a. `a`).
 
